@@ -103,11 +103,7 @@ export default function Discover() {
 
         {/* Tabs row + filter button */}
         <View style={styles.tabsRow}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabsScroll}
-          >
+          <View style={styles.tabsGroup}>
             {TABS.map((t) => {
               const active = t.key === tab;
               return (
@@ -118,12 +114,14 @@ export default function Discover() {
                   onPress={() => setTab(t.key)}
                   style={styles.tabBtn}
                 >
-                  <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t.label}</Text>
+                  <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>
+                    {t.label}
+                  </Text>
                   {active && <View style={styles.tabUnderline} />}
                 </TouchableOpacity>
               );
             })}
-          </ScrollView>
+          </View>
 
           <TouchableOpacity
             testID="open-type-filter"
@@ -228,17 +226,22 @@ const styles = StyleSheet.create({
   tabsRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingRight: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
     marginTop: 4,
   },
-  tabsScroll: { paddingHorizontal: SPACING.lg, gap: 4, alignItems: "center" },
+  tabsGroup: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
   tabBtn: {
-    paddingHorizontal: 12,
+    flexShrink: 1,
+    paddingHorizontal: 4,
     paddingVertical: 10,
     alignItems: "center",
-    marginRight: 8,
+    marginRight: 12,
   },
-  tabLabel: { fontSize: 14, fontWeight: "500", color: COLORS.textSecondary, letterSpacing: -0.2 },
+  tabLabel: { fontSize: 13, fontWeight: "500", color: COLORS.textSecondary, letterSpacing: -0.2 },
   tabLabelActive: { color: COLORS.text, fontWeight: "700" },
   tabUnderline: {
     width: 22,
@@ -247,7 +250,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.text,
     marginTop: 6,
   },
-  filterBtnShadow: { ...SHADOWS.sm, borderRadius: 20, marginLeft: 6 },
+  filterBtnShadow: { ...SHADOWS.sm, borderRadius: 20, marginLeft: 12 },
   filterBtn: {
     width: 40,
     height: 40,

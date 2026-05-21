@@ -1,4 +1,4 @@
-// Custom floating glassmorphism tab bar with center FAB
+// Custom floating glassmorphism tab bar with integrated center FAB
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { BlurView } from "expo-blur";
@@ -49,30 +49,30 @@ export default function FloatingTabBar() {
   };
 
   return (
-    <View pointerEvents="box-none" style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-      <View style={styles.row}>
-        <View style={styles.barShadow}>
-          <BlurView intensity={70} tint="light" style={styles.bar}>
-            <View style={styles.barInner}>
-              {TABS_LEFT.map(renderTab)}
-              <View style={styles.spacer} />
-              {TABS_RIGHT.map(renderTab)}
-            </View>
-          </BlurView>
-        </View>
+    <View
+      pointerEvents="box-none"
+      style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
+    >
+      <View style={styles.barShadow}>
+        <BlurView intensity={70} tint="light" style={styles.bar}>
+          <View style={styles.barInner}>
+            {TABS_LEFT.map(renderTab)}
 
-        <TouchableOpacity
-          testID="tab-create"
-          activeOpacity={0.85}
-          onPress={() => router.push("/create")}
-          style={styles.fabWrap}
-        >
-          <View style={styles.fabGlow}>
-            <View style={styles.fab}>
-              <Plus size={26} color="#FFFFFF" strokeWidth={2.6} />
-            </View>
+            {/* Center FAB integrated inline */}
+            <TouchableOpacity
+              testID="tab-create"
+              activeOpacity={0.85}
+              onPress={() => router.push("/create")}
+              style={styles.fabWrap}
+            >
+              <View style={styles.fab}>
+                <Plus size={22} color="#FFFFFF" strokeWidth={2.6} />
+              </View>
+            </TouchableOpacity>
+
+            {TABS_RIGHT.map(renderTab)}
           </View>
-        </TouchableOpacity>
+        </BlurView>
       </View>
     </View>
   );
@@ -87,7 +87,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     alignItems: "center",
   },
-  row: { width: "100%", alignItems: "center", justifyContent: "center" },
   barShadow: {
     ...SHADOWS.lg,
     borderRadius: RADII.pill,
@@ -96,47 +95,55 @@ const styles = StyleSheet.create({
   bar: {
     borderRadius: RADII.pill,
     overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.55)",
+    backgroundColor: "rgba(255,255,255,0.65)",
     borderWidth: 1,
     borderColor: COLORS.glassBorder,
   },
   barInner: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: SPACING.md,
+    justifyContent: "space-around",
+    paddingHorizontal: SPACING.sm,
     paddingVertical: 10,
   },
   tab: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
     minWidth: 56,
   },
-  label: { fontSize: 10, fontWeight: "500", color: COLORS.textSecondary, marginTop: 3, letterSpacing: 0.1 },
-  labelActive: { color: COLORS.blue, fontWeight: "600" },
-  spacer: { width: 60 },
-  fabWrap: {
-    position: "absolute",
-    top: -22,
-    alignSelf: "center",
+  label: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: COLORS.textSecondary,
+    marginTop: 3,
+    letterSpacing: 0.1,
   },
-  fabGlow: {
-    ...SHADOWS.glow,
-    borderRadius: RADII.pill,
-    padding: 4,
-    backgroundColor: "rgba(255,255,255,0.7)",
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+  labelActive: { color: COLORS.blue, fontWeight: "600" },
+
+  fabWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 4,
   },
   fab: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: COLORS.blue,
     alignItems: "center",
     justifyContent: "center",
-    ...Platform.select({ ios: { shadowColor: COLORS.blue, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } } }),
+    borderWidth: 2.5,
+    borderColor: "rgba(255,255,255,0.85)",
+    ...Platform.select({
+      ios: {
+        shadowColor: COLORS.blue,
+        shadowOpacity: 0.45,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      android: { elevation: 8 },
+    }),
   },
 });
