@@ -425,7 +425,7 @@ async def get_events(tab: Optional[str] = None, event_type: Optional[str] = None
         elif t == "mine" or t == "my":
             items = [e for e in items if e.host_id == "me"]
         elif t == "overview":
-            items = [e for e in items if _dt.fromisoformat(e.date.replace("Z", "+00:00")) >= now]
+            items = [e for e in items if _dt.fromisoformat(e.date.replace("Z", "+00:00")) >= now and e.host_id != "me"]
 
     if event_type and event_type.lower() != "all":
         items = [e for e in items if e.event_type.lower() == event_type.lower()]
@@ -535,20 +535,6 @@ async def send_message(chat_id: str, req: SendMessageReq):
             c.time = "now"
             c.unread = 0
     return new_msg
-
-
-app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
 
 
 app.include_router(api_router)

@@ -19,7 +19,7 @@ GetSpot is a premium social discovery platform for Gen Z, blending event discove
 | Tab | Route | Purpose |
 |-----|-------|---------|
 | Map | `/map` | Real interactive map (Apple-style on native, stylized on web) with floating glass overlays, nearby spots carousel |
-| Discover | `/discover` | Greeting + story rings + filter pills + immersive event feed |
+| Discover | `/discover` | Events screen with 4 tabs (Overview / Joined / Past / My events), search bar, event-type filter bottom sheet (6 types: Cultural / Activity / Informal / Professional / Creative / Health), compact list-style event cards |
 | Create | `/create` (modal) | Choose Event / Spot / Story → form |
 | Chats | `/chats` | Active-now row + chat list → `/chat/[id]` detail |
 | Profile | `/profile` | Avatar, stats glass card, bio, segmented control, post grid |
