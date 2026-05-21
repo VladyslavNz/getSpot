@@ -1,0 +1,203 @@
+{
+  "theme": "Light/White Premium Glassmorphism",
+  "archetype": "3 (Pastel & Soft) mixed with Apple-level clear aesthetics",
+  "colors": {
+    "background": "#F5EFE6",
+    "surface": "#E8DFCA",
+    "primary": "#6D94C5",
+    "secondary": "#CBDCEB",
+    "text": {
+      "primary": "#1C1C1E",
+      "secondary": "#8E8E93",
+      "tertiary": "#C7C7CC"
+    },
+    "glass": {
+      "light": "rgba(255, 255, 255, 0.6)",
+      "medium": "rgba(255, 255, 255, 0.4)",
+      "border": "rgba(255, 255, 255, 0.8)"
+    }
+  },
+  "typography": {
+    "fontFamily": "System, Satoshi, General Sans",
+    "scale": {
+      "h1": {
+        "fontSize": 34,
+        "fontWeight": "700",
+        "letterSpacing": 0.4
+      },
+      "h2": {
+        "fontSize": 28,
+        "fontWeight": "600",
+        "letterSpacing": 0.3
+      },
+      "h3": {
+        "fontSize": 22,
+        "fontWeight": "600",
+        "letterSpacing": 0.2
+      },
+      "bodyLarge": {
+        "fontSize": 17,
+        "fontWeight": "400",
+        "letterSpacing": -0.4
+      },
+      "bodySmall": {
+        "fontSize": 15,
+        "fontWeight": "400",
+        "letterSpacing": -0.2
+      },
+      "caption": {
+        "fontSize": 13,
+        "fontWeight": "500",
+        "letterSpacing": 0
+      }
+    }
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "2xl": 48
+  },
+  "radii": {
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "full": 9999
+  },
+  "shadows": {
+    "sm": {
+      "shadowColor": "#000",
+      "shadowOffset": {
+        "width": 0,
+        "height": 2
+      },
+      "shadowOpacity": 0.05,
+      "shadowRadius": 8,
+      "elevation": 2
+    },
+    "md": {
+      "shadowColor": "#000",
+      "shadowOffset": {
+        "width": 0,
+        "height": 8
+      },
+      "shadowOpacity": 0.08,
+      "shadowRadius": 16,
+      "elevation": 4
+    },
+    "lg": {
+      "shadowColor": "#000",
+      "shadowOffset": {
+        "width": 0,
+        "height": 16
+      },
+      "shadowOpacity": 0.12,
+      "shadowRadius": 32,
+      "elevation": 8
+    }
+  },
+  "components": {
+    "GlassCard": {
+      "description": "Premium glass card component. In React Native, use Expo BlurView with intensity=50-70, tint='light', wrap in a View with shadow-md, and add a 1px inner border using border width 1 and border color rgba(255,255,255,0.8)."
+    },
+    "FloatingBottomNav": {
+      "description": "Capsule shape (rounded-full), positioned absolutely at bottom: 32. Uses BlurView for glass effect. Center FAB is slightly elevated and protrudes above the nav bar."
+    },
+    "PillChips": {
+      "description": "Horizontal scroll view of filter chips. Active state: solid primary (#6D94C5) or bright white. Inactive state: translucent glass. Fully rounded."
+    },
+    "StoryRing": {
+      "description": "Circular avatar wrapped in a LinearGradient border (using expo-linear-gradient) with a 2px padding between the image and border."
+    },
+    "EventCard": {
+      "description": "Large card with full image background. A BlurView overlay at the bottom 30% of the card containing title, date, and 'Going' button."
+    },
+    "ChatBubble": {
+      "description": "Rounded rectangles (varying radii on the tail edge). User messages: Primary blue (#6D94C5). Other messages: Glass/white."
+    },
+    "MapOverlay": {
+      "description": "Floating elements over react-native-maps. Top search bar is glass. Bottom carousel of spots uses smaller GlassCards."
+    }
+  },
+  "screens": {
+    "MapTab": {
+      "layout": "Full screen map. Floating search bar top. Floating 'current location' button. Bottom horizontal FlatList for nearby spots."
+    },
+    "DiscoverTab": {
+      "layout": "Header with 'Hi, Name' + Date. Story rings horizontal strip. Pill filters. Vertical FlatList of immersive Event Cards."
+    },
+    "ChatsTab": {
+      "layout": "List of recent chats. Each row has an avatar, name, last message, time, and unread badge. Glass card styling for rows."
+    },
+    "ProfileTab": {
+      "layout": "Header with large avatar, verified badge. Stat cards (glass). Segmented control (Feed / Saved / Going). Masonry or Grid of user posts."
+    },
+    "CreateModal": {
+      "layout": "Bottom sheet modal using react-native-modal or reanimated. Glassmorphism background. Options: Create Event, Add Spot, Post Story."
+    },
+    "TopSpots": {
+      "layout": "Search bar top, Category chips, Vertical list of Spot cards (thumbnail left, details right, glass container)."
+    }
+  },
+  "animations": {
+    "spring": {
+      "damping": 20,
+      "stiffness": 200,
+      "mass": 1
+    },
+    "transitions": "Use react-native-reanimated for shared element transitions (e.g., Event Card to Event Detail)."
+  },
+  "iconography": {
+    "library": "lucide-react-native",
+    "strokeWidth": 2,
+    "size": {
+      "sm": 16,
+      "md": 24,
+      "lg": 32
+    }
+  },
+  "testing": {
+    "attribute": "testID",
+    "convention": "kebab-case, role-based"
+  },
+  "media_urls": {
+    "event_hero": [
+      "https://images.unsplash.com/photo-1717231856724-5e52b126a6d1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwzfHxnZW4lMjB6JTIwZnJpZW5kcyUyMGdhdGhlcmluZyUyMGV2ZW50fGVufDB8fHx8MTc3OTM2ODQ0NHww&ixlib=rb-4.1.0&q=85",
+      "https://images.pexels.com/photos/10578910/pexels-photo-10578910.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "https://images.pexels.com/photos/6968861/pexels-photo-6968861.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "https://images.unsplash.com/photo-1554499299-d3ec6385c514?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHw0fHxnZW4lMjB6JTIwZnJpZW5kcyUyMGdhdGhlcmluZyUyMGV2ZW50fGVufDB8fHx8MTc3OTM2ODQ0NHww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1563902242731-bcde8ffa1d36?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwxfHxnZW4lMjB6JTIwZnJpZW5kcyUyMGdhdGhlcmluZyUyMGV2ZW50fGVufDB8fHx8MTc3OTM2ODQ0NHww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1717231855727-06fa2b4c431c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwyfHxnZW4lMjB6JTIwZnJpZW5kcyUyMGdhdGhlcmluZyUyMGV2ZW50fGVufDB8fHx8MTc3OTM2ODQ0NHww&ixlib=rb-4.1.0&q=85"
+    ],
+    "spot_images": [
+      "https://images.unsplash.com/photo-1648808694138-6706c5efc80a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTN8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBjYWZlJTIwaW50ZXJpb3J8ZW58MHx8fHwxNzc5MzY4NDYyfDA&ixlib=rb-4.1.0&q=85",
+      "https://images.pexels.com/photos/34624845/pexels-photo-34624845.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "https://images.pexels.com/photos/32704881/pexels-photo-32704881.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "https://images.unsplash.com/photo-1638882267964-0d9764607947?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTN8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBjYWZlJTIwaW50ZXJpb3J8ZW58MHx8fHwxNzc5MzY4NDYyfDA&ixlib=rb-4.1.0&q=85",
+      "https://images.pexels.com/photos/30301206/pexels-photo-30301206.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "https://images.unsplash.com/photo-1493246318656-5bfd4cfb29b8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwyfHxyb29mdG9wJTIwYmFyfGVufDB8fHx8MTc3OTM2ODQ2M3ww&ixlib=rb-4.1.0&q=85",
+      "https://images.pexels.com/photos/29751758/pexels-photo-29751758.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "https://images.unsplash.com/photo-1613066697301-d7dccfc86bb5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHw0fHxyb29mdG9wJTIwYmFyfGVufDB8fHx8MTc3OTM2ODQ2M3ww&ixlib=rb-4.1.0&q=85"
+    ],
+    "user_avatars": [
+      "https://images.unsplash.com/photo-1758600435913-c45b319745ca?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwzfHxkaXZlcnNlJTIwZ2VuJTIweiUyMHBvcnRyYWl0JTIwc21pbGluZ3xlbnwwfHx8fDE3NzkzNjg0NDV8MA&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1758874384842-7e79ce77ed1a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHw0fHxkaXZlcnNlJTIwZ2VuJTIweiUyMHBvcnRyYWl0JTIwc21pbGluZ3xlbnwwfHx8fDE3NzkzNjg0NDV8MA&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1737599819881-df2553a821ad?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwxfHxkaXZlcnNlJTIwZ2VuJTIweiUyMHBvcnRyYWl0JTIwc21pbGluZ3xlbnwwfHx8fDE3NzkzNjg0NDV8MA&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1613678786967-46a6dd2f5c21?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwyfHxkaXZlcnNlJTIwZ2VuJTIweiUyMHBvcnRyYWl0JTIwc21pbGluZ3xlbnwwfHx8fDE3NzkzNjg0NDV8MA&ixlib=rb-4.1.0&q=85",
+      "https://images.pexels.com/photos/7312381/pexels-photo-7312381.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "https://images.pexels.com/photos/5325913/pexels-photo-5325913.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    ],
+    "story_backgrounds": [
+      "https://images.unsplash.com/photo-1658563309427-6e703a70203c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwxfHxhZXN0aGV0aWMlMjBzdW5zZXQlMjBuYXR1cmUlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3OTM2ODQ0NXww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1725066744443-c872351c9e2b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwNTYxODF8MHwxfHNlYXJjaHwzfHxhZXN0aGV0aWMlMjBzdW5zZXQlMjBuYXR1cmUlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3OTM2ODQ0NXww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1644243019151-0bb97ce1af84?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwyfHxhZXN0aGV0aWMlMjBzdW5zZXQlMjBuYXR1cmUlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3OTM2ODQ0NXww&ixlib=rb-4.1.0&q=85",
+      "https://images.pexels.com/photos/8770442/pexels-photo-8770442.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "https://images.unsplash.com/photo-1661952731149-8954c691096f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHw0fHxhZXN0aGV0aWMlMjBzdW5zZXQlMjBuYXR1cmUlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3OTM2ODQ0NXww&ixlib=rb-4.1.0&q=85",
+      "https://images.pexels.com/photos/997314/pexels-photo-997314.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    ]
+  },
+  "instructions_to_main_agent": "Implement a light glassmorphism design system in React Native Expo. Use 'expo-blur' for frosted glass effects on cards, nav bar, and overlays. Rely on soft shadows and inner white borders (rgba(255,255,255,0.8)) for edge highlights on glass surfaces. DO NOT use generic gray borders. Prioritize Apple's UI feel: ample padding, large typography with tight letter spacing, and floating UI panels on the Map tab. All images must be used from media_urls; avoid any placeholders. Use react-native-reanimated for smooth transitions and interactions. Since these are .js files, define your styles explicitly with StyleSheet."
+}
