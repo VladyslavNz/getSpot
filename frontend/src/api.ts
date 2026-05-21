@@ -38,13 +38,17 @@ export type Event = {
   host_avatar: string;
   image: string;
   location: string;
+  city: string;
+  distance_km: number;
   latitude: number;
   longitude: number;
   date: string;
   description: string;
   category: string;
+  event_type: string;
   attendees: string[];
   member_count: number;
+  capacity: number;
   is_premium: boolean;
   going: boolean;
 };
@@ -95,7 +99,16 @@ export type Message = {
 export const api = {
   me: () => req<User>("/me"),
   stories: () => req<Story[]>("/stories"),
-  events: (category?: string) => req<Event[]>(`/events${category ? `?category=${category}` : ""}`),
+  events: (params?: { tab?: string; event_type?: string; category?: string }) => {
+    const qs = params
+      ? "?" +
+        Object.entries(params)
+          .filter(([, v]) => v && v !== "all")
+          .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+          .join("&")
+      : "";
+    return req<Event[]>(`/events${qs.length > 1 ? qs : ""}`);
+  },
   event: (id: string) => req<Event>(`/events/${id}`),
   toggleGoing: (id: string) => req<{ going: boolean; member_count: number }>(`/events/${id}/going`, { method: "POST" }),
   createEvent: (body: { title: string; location: string; date: string; description: string; category?: string }) =>

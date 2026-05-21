@@ -83,13 +83,17 @@ class Event(BaseModel):
     host_avatar: str
     image: str
     location: str
+    city: str = "San Francisco"
+    distance_km: int = 0
     latitude: float
     longitude: float
     date: str  # ISO
     description: str
     category: str
+    event_type: str = "informal"  # cultural | activity | informal | professional | creative | health
     attendees: List[str] = []  # avatar urls
     member_count: int = 0
+    capacity: int = 500  # 0 = open (no cap)
     is_premium: bool = False
     going: bool = False
 
@@ -143,6 +147,8 @@ class CreateEventReq(BaseModel):
     date: str
     description: str
     category: str = "Social"
+    event_type: str = "informal"
+    capacity: int = 50
     image: Optional[str] = None
 
 
@@ -181,13 +187,17 @@ EVENTS = [
         host_avatar=AVATARS[1],
         image=EVENT_HEROES[0],
         location="Skyline Rooftop, LA",
+        city="Los Angeles",
+        distance_km=127,
         latitude=37.7849,
         longitude=-122.4094,
-        date="2026-02-15T18:00:00Z",
+        date="2026-06-08T18:00:00Z",
         description="Wind down with a guided sunset yoga flow followed by herbal tea and ambient music. Perfect way to reset midweek.",
         category="Wellness",
+        event_type="health",
         attendees=[AVATARS[2], AVATARS[3], AVATARS[4], AVATARS[5]],
         member_count=15,
+        capacity=500,
     ),
     Event(
         id="e2",
@@ -197,13 +207,17 @@ EVENTS = [
         host_avatar=AVATARS[2],
         image=EVENT_HEROES[1],
         location="The Boardwalk, Santa Cruz",
+        city="Santa Cruz",
+        distance_km=68,
         latitude=36.9626,
         longitude=-122.0181,
-        date="2026-02-18T14:00:00Z",
+        date="2026-06-12T14:00:00Z",
         description="Bring your favorite snacks and a blanket — golden hour picnic by the waves. Acoustic guitar guaranteed.",
         category="Social",
+        event_type="informal",
         attendees=[AVATARS[1], AVATARS[3], AVATARS[5]],
         member_count=22,
+        capacity=500,
         is_premium=True,
     ),
     Event(
@@ -214,13 +228,17 @@ EVENTS = [
         host_avatar=AVATARS[3],
         image=EVENT_HEROES[2],
         location="The Marble Table, NYC",
+        city="New York",
+        distance_km=512,
         latitude=40.7411,
         longitude=-74.0017,
-        date="2026-02-20T20:00:00Z",
+        date="2026-06-18T20:00:00Z",
         description="Live jazz quartet, craft cocktails, and the best skyline view in Manhattan.",
         category="Music",
+        event_type="cultural",
         attendees=[AVATARS[1], AVATARS[2], AVATARS[4]],
         member_count=48,
+        capacity=500,
     ),
     Event(
         id="e4",
@@ -230,13 +248,17 @@ EVENTS = [
         host_avatar=AVATARS[4],
         image=EVENT_HEROES[3],
         location="Marin Headlands",
+        city="Sausalito",
+        distance_km=12,
         latitude=37.8260,
         longitude=-122.4990,
-        date="2026-02-22T07:00:00Z",
+        date="2026-05-28T07:00:00Z",
         description="Easy 3-mile loop with bay views, ending at a hidden cafe for pour-over.",
         category="Outdoors",
+        event_type="activity",
         attendees=[AVATARS[1], AVATARS[5]],
         member_count=8,
+        capacity=10,
     ),
     Event(
         id="e5",
@@ -246,13 +268,78 @@ EVENTS = [
         host_avatar=AVATARS[5],
         image=EVENT_HEROES[4],
         location="Mission District, SF",
+        city="San Francisco",
+        distance_km=4,
         latitude=37.7599,
         longitude=-122.4148,
-        date="2026-02-24T16:00:00Z",
+        date="2026-06-02T16:00:00Z",
         description="Self-guided mural tour with local artists. Ends with tacos and natural wine.",
         category="Culture",
+        event_type="creative",
         attendees=[AVATARS[2], AVATARS[3], AVATARS[4]],
         member_count=14,
+        capacity=30,
+    ),
+    Event(
+        id="e6",
+        title="Founder Coffee Roundtable",
+        host_id="me",
+        host_name="Budiarti R",
+        host_avatar=AVATARS[0],
+        image=EVENT_HEROES[5],
+        location="Sightglass Coffee, SF",
+        city="San Francisco",
+        distance_km=3,
+        latitude=37.7720,
+        longitude=-122.4108,
+        date="2026-03-04T09:00:00Z",
+        description="Casual coffee chat with early-stage founders. Bring one win and one challenge.",
+        category="Business",
+        event_type="professional",
+        attendees=[AVATARS[1], AVATARS[3]],
+        member_count=6,
+        capacity=12,
+    ),
+    Event(
+        id="e7",
+        title="Vinyl Listening Session",
+        host_id="me",
+        host_name="Budiarti R",
+        host_avatar=AVATARS[0],
+        image=EVENT_HEROES[1],
+        location="The Garage, Oakland",
+        city="Oakland",
+        distance_km=14,
+        latitude=37.8044,
+        longitude=-122.2712,
+        date="2025-12-20T19:00:00Z",
+        description="Bring one record. We listen, talk, repeat. BYOB.",
+        category="Music",
+        event_type="cultural",
+        attendees=[AVATARS[2], AVATARS[4], AVATARS[5]],
+        member_count=11,
+        capacity=15,
+    ),
+    Event(
+        id="e8",
+        title="Sunrise Run Club",
+        host_id="u2",
+        host_name="Samantha William",
+        host_avatar=AVATARS[2],
+        image=EVENT_HEROES[3],
+        location="Crissy Field",
+        city="San Francisco",
+        distance_km=5,
+        latitude=37.8030,
+        longitude=-122.4660,
+        date="2025-11-30T06:30:00Z",
+        description="5k along the bay. All paces welcome. Coffee after.",
+        category="Outdoors",
+        event_type="activity",
+        attendees=[AVATARS[0], AVATARS[3]],
+        member_count=18,
+        capacity=0,  # open
+        going=True,
     ),
 ]
 
@@ -324,10 +411,29 @@ async def get_stories():
 
 
 @api_router.get("/events", response_model=List[Event])
-async def get_events(category: Optional[str] = None):
+async def get_events(tab: Optional[str] = None, event_type: Optional[str] = None, category: Optional[str] = None):
+    from datetime import datetime as _dt, timezone as _tz
+    now = _dt.now(_tz.utc)
+    items = list(EVENTS)
+
+    if tab:
+        t = tab.lower()
+        if t == "joined":
+            items = [e for e in items if e.going]
+        elif t == "past":
+            items = [e for e in items if _dt.fromisoformat(e.date.replace("Z", "+00:00")) < now]
+        elif t == "mine" or t == "my":
+            items = [e for e in items if e.host_id == "me"]
+        elif t == "overview":
+            items = [e for e in items if _dt.fromisoformat(e.date.replace("Z", "+00:00")) >= now]
+
+    if event_type and event_type.lower() != "all":
+        items = [e for e in items if e.event_type.lower() == event_type.lower()]
+
     if category and category.lower() not in ("all", "upcoming", "past", "trending"):
-        return [e for e in EVENTS if e.category.lower() == category.lower()]
-    return EVENTS
+        items = [e for e in items if e.category.lower() == category.lower()]
+
+    return items
 
 
 @api_router.get("/events/{event_id}", response_model=Event)
@@ -361,11 +467,15 @@ async def create_event(req: CreateEventReq):
         host_avatar=ME.avatar,
         image=req.image or EVENT_HEROES[len(EVENTS) % len(EVENT_HEROES)],
         location=req.location,
+        city="San Francisco",
+        distance_km=2,
         latitude=37.7749 + (len(EVENTS) * 0.005),
         longitude=-122.4194 + (len(EVENTS) * 0.005),
         date=req.date,
         description=req.description,
         category=req.category,
+        event_type=req.event_type,
+        capacity=req.capacity,
         attendees=[AVATARS[1], AVATARS[2]],
         member_count=1,
     )
@@ -425,6 +535,20 @@ async def send_message(chat_id: str, req: SendMessageReq):
             c.time = "now"
             c.unread = 0
     return new_msg
+
+
+app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 
 app.include_router(api_router)

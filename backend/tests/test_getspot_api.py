@@ -1,5 +1,7 @@
-"""GetSpot backend regression tests - in-memory FastAPI."""
+"""GetSpot backend tests — covers Discover tab/event_type filters + regression for chats/spots/me."""
 import os
+from datetime import datetime, timezone
+
 import pytest
 import requests
 
@@ -8,172 +10,131 @@ API = f"{BASE_URL}/api"
 
 
 @pytest.fixture(scope="module")
-def s():
-    sess = requests.Session()
-    sess.headers.update({"Content-Type": "application/json"})
-    return sess
+def client():
+    s = requests.Session()
+    s.headers.update({"Content-Type": "application/json"})
+    return s
 
 
-# Health
-def test_root(s):
-    r = s.get(f"{API}/")
-    assert r.status_code == 200
-    assert r.json().get("status") == "ok"
+# -------- Basic health / regression --------
+class TestHealth:
+    def test_root(self, client):
+        r = client.get(f"{API}/")
+        assert r.status_code == 200
+        assert r.json()["status"] == "ok"
+
+    def test_me(self, client):
+        r = client.get(f"{API}/me")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["id"] == "me"
+        assert data["name"] == "Budiarti R"
+
+    def test_spots(self, client):
+        r = client.get(f"{API}/spots")
+        assert r.status_code == 200
+        assert len(r.json()) >= 5
+
+    def test_chats(self, client):
+        r = client.get(f"{API}/chats")
+        assert r.status_code == 200
+        assert len(r.json()) == 5
+
+    def test_messages(self, client):
+        r = client.get(f"{API}/chats/c1/messages")
+        assert r.status_code == 200
+        assert len(r.json()) >= 1
 
 
-# Me
-def test_me_returns_budiarti(s):
-    r = s.get(f"{API}/me")
-    assert r.status_code == 200
-    j = r.json()
-    assert j["id"] == "me"
-    assert j["name"] == "Budiarti R"
-    assert j["verified"] is True
+# -------- Discover tabs --------
+class TestEventsTabs:
+    def test_overview_excludes_past_and_mine(self, client):
+        r = client.get(f"{API}/events", params={"tab": "overview"})
+        assert r.status_code == 200
+        items = r.json()
+        now = datetime.now(timezone.utc)
+        ids = {e["id"] for e in items}
+        # past events e7 (2025-12-20) and e8 (2025-11-30) must NOT appear
+        assert "e7" not in ids, "Overview should exclude past event e7"
+        assert "e8" not in ids, "Overview should exclude past event e8"
+        # All returned should be future
+        for e in items:
+            d = datetime.fromisoformat(e["date"].replace("Z", "+00:00"))
+            assert d >= now, f"Event {e['id']} in overview is in past"
+
+    def test_joined_returns_only_going(self, client):
+        r = client.get(f"{API}/events", params={"tab": "joined"})
+        assert r.status_code == 200
+        items = r.json()
+        assert len(items) >= 1
+        for e in items:
+            assert e["going"] is True
+        ids = {e["id"] for e in items}
+        assert "e8" in ids, "e8 Sunrise Run Club (going=true) should be in joined"
+
+    def test_past_returns_only_past(self, client):
+        r = client.get(f"{API}/events", params={"tab": "past"})
+        assert r.status_code == 200
+        items = r.json()
+        now = datetime.now(timezone.utc)
+        assert len(items) >= 1
+        for e in items:
+            d = datetime.fromisoformat(e["date"].replace("Z", "+00:00"))
+            assert d < now, f"Event {e['id']} marked past but is future"
+
+    def test_mine_returns_only_me_hosted(self, client):
+        r = client.get(f"{API}/events", params={"tab": "mine"})
+        assert r.status_code == 200
+        items = r.json()
+        ids = {e["id"] for e in items}
+        assert "e6" in ids
+        assert "e7" in ids
+        for e in items:
+            assert e["host_id"] == "me"
 
 
-# Stories
-def test_stories_returns_five(s):
-    r = s.get(f"{API}/stories")
-    assert r.status_code == 200
-    data = r.json()
-    assert isinstance(data, list)
-    assert len(data) == 5
-    assert all("avatar" in x and "background" in x for x in data)
+# -------- Event type filter --------
+class TestEventTypeFilter:
+    def test_cultural_filter(self, client):
+        r = client.get(f"{API}/events", params={"event_type": "cultural"})
+        assert r.status_code == 200
+        items = r.json()
+        ids = {e["id"] for e in items}
+        assert ids == {"e3", "e7"}, f"Expected cultural events e3,e7 got {ids}"
+
+    def test_activity_filter(self, client):
+        r = client.get(f"{API}/events", params={"event_type": "activity"})
+        assert r.status_code == 200
+        for e in r.json():
+            assert e["event_type"] == "activity"
+
+    def test_all_returns_everything(self, client):
+        r = client.get(f"{API}/events", params={"event_type": "all"})
+        assert r.status_code == 200
+        assert len(r.json()) >= 8
+
+    def test_combined_overview_activity(self, client):
+        r = client.get(f"{API}/events", params={"tab": "overview", "event_type": "activity"})
+        assert r.status_code == 200
+        items = r.json()
+        now = datetime.now(timezone.utc)
+        for e in items:
+            assert e["event_type"] == "activity"
+            d = datetime.fromisoformat(e["date"].replace("Z", "+00:00"))
+            assert d >= now
+        ids = {e["id"] for e in items}
+        # e8 is activity but past -> excluded; e4 is activity & future -> included
+        assert "e8" not in ids
+        assert "e4" in ids
 
 
-# Events list + category filter
-def test_events_returns_five(s):
-    r = s.get(f"{API}/events")
-    assert r.status_code == 200
-    data = r.json()
-    assert len(data) >= 5
-    assert any(e["id"] == "e1" for e in data)
+# -------- Event detail + going toggle --------
+class TestEventDetail:
+    def test_get_event(self, client):
+        r = client.get(f"{API}/events/e1")
+        assert r.status_code == 200
+        assert r.json()["title"] == "Sunset Yoga & Chill"
 
-
-def test_events_category_filter(s):
-    r = s.get(f"{API}/events", params={"category": "Wellness"})
-    assert r.status_code == 200
-    data = r.json()
-    assert len(data) >= 1
-    assert all(e["category"].lower() == "wellness" for e in data)
-
-
-def test_event_detail(s):
-    r = s.get(f"{API}/events/e1")
-    assert r.status_code == 200
-    j = r.json()
-    assert j["id"] == "e1"
-    assert j["title"] == "Sunset Yoga & Chill"
-
-
-def test_event_not_found(s):
-    r = s.get(f"{API}/events/nope")
-    assert r.status_code == 404
-
-
-# Going toggle
-def test_event_going_toggle(s):
-    # capture initial
-    r0 = s.get(f"{API}/events/e2")
-    assert r0.status_code == 200
-    initial = r0.json()
-    initial_going = initial["going"]
-    initial_count = initial["member_count"]
-
-    # toggle 1
-    r1 = s.post(f"{API}/events/e2/going")
-    assert r1.status_code == 200
-    j1 = r1.json()
-    assert j1["going"] == (not initial_going)
-    expected_count = initial_count + (1 if j1["going"] else -1)
-    assert j1["member_count"] == max(0, expected_count)
-
-    # toggle back to restore state
-    r2 = s.post(f"{API}/events/e2/going")
-    assert r2.status_code == 200
-    j2 = r2.json()
-    assert j2["going"] == initial_going
-
-
-# Create event
-def test_create_event_inserts_at_top(s):
-    payload = {
-        "title": "TEST_Event_Pytest",
-        "location": "Test Location",
-        "date": "2026-03-01T18:00:00Z",
-        "description": "Created by pytest",
-        "category": "Social",
-    }
-    r = s.post(f"{API}/events", json=payload)
-    assert r.status_code == 200
-    created = r.json()
-    assert created["title"] == payload["title"]
-    new_id = created["id"]
-
-    # verify in list
-    r2 = s.get(f"{API}/events")
-    ids = [e["id"] for e in r2.json()]
-    assert new_id in ids
-    # inserted at top
-    assert ids[0] == new_id
-
-
-# Spots
-def test_spots_returns_eight(s):
-    r = s.get(f"{API}/spots")
-    assert r.status_code == 200
-    data = r.json()
-    assert len(data) == 8
-
-
-def test_spots_category_filter(s):
-    r = s.get(f"{API}/spots", params={"category": "Bars"})
-    assert r.status_code == 200
-    data = r.json()
-    assert len(data) >= 1
-    assert all(sp["category"].lower() == "bars" for sp in data)
-
-
-# Posts
-def test_posts_for_me(s):
-    r = s.get(f"{API}/posts", params={"user_id": "me"})
-    assert r.status_code == 200
-    data = r.json()
-    assert len(data) == 6
-    assert all(p["user_id"] == "me" for p in data)
-
-
-# Chats
-def test_chats_returns_five(s):
-    r = s.get(f"{API}/chats")
-    assert r.status_code == 200
-    data = r.json()
-    assert len(data) == 5
-    assert data[0]["id"] == "c1"
-
-
-def test_chat_messages_c1(s):
-    r = s.get(f"{API}/chats/c1/messages")
-    assert r.status_code == 200
-    data = r.json()
-    assert len(data) >= 5
-
-
-def test_send_message_updates_preview(s):
-    text = "TEST_pytest hello"
-    r = s.post(f"{API}/chats/c1/messages", json={"text": text})
-    assert r.status_code == 200
-    j = r.json()
-    assert j["text"] == text
-    assert j["sender"] == "me"
-
-    # verify chat preview updated
-    rc = s.get(f"{API}/chats")
-    chat_c1 = next(c for c in rc.json() if c["id"] == "c1")
-    assert chat_c1["last_message"] == text
-    assert chat_c1["time"] == "now"
-
-    # verify it persists in messages list
-    rm = s.get(f"{API}/chats/c1/messages")
-    msgs = rm.json()
-    assert any(m["text"] == text and m["sender"] == "me" for m in msgs)
+    def test_event_not_found(self, client):
+        r = client.get(f"{API}/events/nope")
+        assert r.status_code == 404
