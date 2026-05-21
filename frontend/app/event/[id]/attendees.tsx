@@ -1,4 +1,4 @@
-// Full "Who's going" attendees list screen
+// Who's going — fixed glass header + organizer, only list scrolls
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -11,11 +11,11 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
-import { ChevronLeft, BadgeCheck, Crown, Search } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { ChevronLeft, BadgeCheck, Crown } from "lucide-react-native";
 import { api, Event } from "../../../src/api";
 import { COLORS, RADII, SHADOWS, SPACING, TYPE } from "../../../src/theme";
 
-// Fallback names (deterministic) for seeded attendee avatars
 const DEMO_NAMES = [
   "Ulyana Tarakovskaya",
   "Mateo Rivera",
@@ -43,41 +43,56 @@ export default function Attendees() {
 
   if (!event) return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />;
 
-  // Build attendee list: organizer first, then participants from event.attendees.
-  // Synthesize a few extra rows to match member_count for the demo (cosmetic only).
   const synthesized = Math.max(0, event.member_count - event.attendees.length);
   const filler = Array.from({ length: synthesized }).map((_, i) => ({
     avatar: event.attendees[i % event.attendees.length] || event.host_avatar,
     name: DEMO_NAMES[i % DEMO_NAMES.length],
   }));
   const allParticipants = [
-    ...event.attendees.map((a, i) => ({ avatar: a, name: DEMO_NAMES[i % DEMO_NAMES.length] })),
+    ...event.attendees.map((a, i) => ({
+      avatar: a,
+      name: DEMO_NAMES[i % DEMO_NAMES.length],
+    })),
     ...filler,
   ];
 
   return (
-    <View style={{ flex: 1 }}>
-      {/* Sticky header */}
-      <View style={[styles.headerBar, { paddingTop: insets.top + 8 }]}>
-        <BlurView intensity={70} tint="light" style={styles.headerBlur}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="attendees-back">
-            <ChevronLeft size={22} color={COLORS.text} strokeWidth={2.4} />
+    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+      {/* Atmospheric gradient background */}
+      <LinearGradient
+        colors={[COLORS.cream, "#FBF7F0", COLORS.blueLight]}
+        locations={[0, 0.55, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+
+      {/* FIXED top zone — header + organizer */}
+      <View style={[styles.fixedZone, { paddingTop: insets.top + 4 }]}>
+        {/* Transparent glass header */}
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            testID="attendees-back"
+            activeOpacity={0.85}
+          >
+            <BlurView intensity={50} tint="light" style={styles.backBlur}>
+              <ChevronLeft size={20} color={COLORS.text} strokeWidth={2.4} />
+            </BlurView>
           </TouchableOpacity>
-          <View style={styles.headerCenter}>
+
+          <View style={styles.headerTextWrap}>
             <Text style={styles.headerTitle}>Who's going</Text>
-            <Text style={styles.headerSub} numberOfLines={1}>{event.title}</Text>
+            <Text style={styles.headerSub} numberOfLines={1}>
+              {event.title}
+            </Text>
           </View>
+
           <View style={styles.countPill}>
             <Text style={styles.countText}>{event.member_count}</Text>
           </View>
-        </BlurView>
-      </View>
+        </View>
 
-      <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 78, paddingBottom: insets.bottom + 40 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Organizer section */}
+        {/* Organizer (fixed) */}
         <Text style={styles.sectionLabel}>Organizer</Text>
         <TouchableOpacity activeOpacity={0.92} style={styles.personShadow}>
           <View style={[styles.personCard, styles.organizerCard]}>
@@ -94,18 +109,38 @@ export default function Attendees() {
               </View>
               <Text style={styles.organizerRole}>Host · {event.category}</Text>
             </View>
-            <TouchableOpacity activeOpacity={0.85} style={styles.contactBtn}>
+            <TouchableOpacity activeOpacity={0.85} style={styles.contactBtn} testID="contact-host">
               <Text style={styles.contactLabel}>Contact</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
 
-        {/* Participants section */}
+        {/* Participants header (fixed) */}
         <View style={styles.participantsHeader}>
           <Text style={styles.sectionLabel}>Participants</Text>
-          <Text style={styles.countSmall}>{allParticipants.length}</Text>
+          <View style={styles.smallCount}>
+            <Text style={styles.smallCountText}>{allParticipants.length}</Text>
+          </View>
         </View>
+      </View>
 
+      {/* Top fade edge over scrolling content */}
+      <LinearGradient
+        colors={["rgba(245,239,230,0.95)", "rgba(245,239,230,0)"]}
+        pointerEvents="none"
+        style={[styles.fadeTop, { top: insets.top + 188 }]}
+      />
+
+      {/* SCROLLABLE participants list only */}
+      <ScrollView
+        style={[styles.scroll, { marginTop: insets.top + 188 }]}
+        contentContainerStyle={{
+          paddingTop: 14,
+          paddingBottom: insets.bottom + 40,
+        }}
+        showsVerticalScrollIndicator={false}
+        bounces
+      >
         <View style={styles.participantsList}>
           {allParticipants.map((p, i) => (
             <TouchableOpacity
@@ -128,48 +163,59 @@ export default function Attendees() {
           ))}
         </View>
       </ScrollView>
+
+      {/* Bottom fade edge */}
+      <LinearGradient
+        colors={["rgba(203,220,235,0)", "rgba(203,220,235,0.9)"]}
+        pointerEvents="none"
+        style={[styles.fadeBottom, { height: insets.bottom + 32 }]}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerBar: {
+  fixedZone: {
     position: "absolute",
+    top: 0,
     left: 0,
     right: 0,
-    top: 0,
     zIndex: 10,
+    paddingHorizontal: 0,
+    paddingBottom: 4,
   },
-  headerBlur: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingBottom: 12,
+    paddingHorizontal: SPACING.lg,
+    gap: 12,
     paddingTop: 4,
-    gap: 8,
-    backgroundColor: "rgba(255,255,255,0.78)",
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.glassBorder,
+    paddingBottom: 14,
   },
-  backBtn: {
+  backBtn: { borderRadius: 20 },
+  backBlur: {
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(20,40,80,0.04)",
+    backgroundColor: "rgba(255,255,255,0.55)",
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    overflow: "hidden",
   },
-  headerCenter: { flex: 1 },
-  headerTitle: { ...TYPE.h3, fontSize: 17 },
+  headerTextWrap: { flex: 1 },
+  headerTitle: { ...TYPE.h2, fontSize: 22, letterSpacing: -0.4 },
   headerSub: { ...TYPE.small, fontSize: 12, marginTop: 1 },
   countPill: {
-    minWidth: 36,
-    height: 28,
-    borderRadius: 14,
-    paddingHorizontal: 10,
+    minWidth: 40,
+    height: 30,
+    borderRadius: 15,
+    paddingHorizontal: 12,
     backgroundColor: COLORS.text,
     alignItems: "center",
     justifyContent: "center",
+    ...SHADOWS.sm,
   },
   countText: { color: "#FFF", fontWeight: "700", fontSize: 13 },
 
@@ -180,29 +226,47 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.6,
     marginHorizontal: SPACING.lg,
-    marginBottom: 10,
-    marginTop: 6,
-  },
-  countSmall: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: COLORS.text,
-    backgroundColor: "rgba(20,40,80,0.06)",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    overflow: "hidden",
-    marginRight: SPACING.lg,
+    marginBottom: 8,
   },
   participantsHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: SPACING.lg,
+    paddingRight: SPACING.lg,
+    marginTop: 4,
   },
+  smallCount: {
+    backgroundColor: "rgba(20,40,80,0.06)",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  smallCountText: { fontSize: 11, fontWeight: "700", color: COLORS.text },
+
+  fadeTop: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 14,
+    zIndex: 5,
+  },
+  fadeBottom: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 5,
+  },
+
+  scroll: { flex: 1 },
   participantsList: { gap: 8 },
 
-  personShadow: { ...SHADOWS.sm, marginHorizontal: SPACING.lg, borderRadius: RADII.lg, marginBottom: 8 },
+  personShadow: {
+    ...SHADOWS.sm,
+    marginHorizontal: SPACING.lg,
+    borderRadius: RADII.lg,
+    marginBottom: 8,
+  },
   personCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -210,13 +274,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: RADII.lg,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255,255,255,0.88)",
     borderWidth: 1,
     borderColor: COLORS.glassBorder,
   },
   organizerCard: {
-    backgroundColor: "rgba(109,148,197,0.08)",
-    borderColor: "rgba(109,148,197,0.28)",
+    backgroundColor: "rgba(109,148,197,0.10)",
+    borderColor: "rgba(109,148,197,0.30)",
+    marginHorizontal: SPACING.lg,
+    marginBottom: 14,
   },
   organizerRing: { position: "relative" },
   personAvatar: { width: 46, height: 46, borderRadius: 23 },
