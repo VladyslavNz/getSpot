@@ -23,7 +23,8 @@ export default function RootLayout() {
             name="create"
             options={{ presentation: "transparentModal", animation: "fade" }}
           />
-          <Stack.Screen name="event/[id]" options={{ animation: "slide_from_bottom" }} />
+          <Stack.Screen name="event/[id]/index" options={{ animation: "slide_from_bottom" }} />
+          <Stack.Screen name="event/[id]/attendees" />
           <Stack.Screen name="chat/[id]" />
           <Stack.Screen name="settings" />
           <Stack.Screen name="spots" />
