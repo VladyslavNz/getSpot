@@ -87,9 +87,7 @@ export default function Attendees() {
             </Text>
           </View>
 
-          <View style={styles.countPill}>
-            <Text style={styles.countText}>{event.member_count}</Text>
-          </View>
+          <View style={styles.headerSpacer} />
         </View>
 
         {/* Organizer (fixed) — same card style as participants */}
@@ -128,12 +126,12 @@ export default function Attendees() {
       <LinearGradient
         colors={["rgba(245,239,230,0.95)", "rgba(245,239,230,0)"]}
         pointerEvents="none"
-        style={[styles.fadeTop, { top: insets.top + 218 }]}
+        style={[styles.fadeTop, { top: insets.top + 206 }]}
       />
 
       {/* SCROLLABLE participants list only */}
       <ScrollView
-        style={[styles.scroll, { marginTop: insets.top + 218 }]}
+        style={[styles.scroll, { marginTop: insets.top + 206 }]}
         contentContainerStyle={{
           paddingTop: 14,
           paddingBottom: insets.bottom + 40,
@@ -220,6 +218,7 @@ const styles = StyleSheet.create({
     ...SHADOWS.sm,
   },
   countText: { color: "#FFF", fontWeight: "700", fontSize: 13 },
+  headerSpacer: { width: 40, height: 40 },
 
   sectionLabel: {
     ...TYPE.caption,
@@ -235,7 +234,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingRight: SPACING.lg,
-    marginTop: 4,
+    marginTop: 10,
+    marginBottom: 6,
   },
   smallCount: {
     backgroundColor: "rgba(20,40,80,0.06)",
