@@ -1,5 +1,5 @@
-// Map tab — Apple-style with floating glass overlays
-import React, { useEffect, useState, useRef } from "react";
+// Map tab — clean initial state, search at top, city below, glass Nearby Spots
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,13 +7,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Animated,
+  TextInput,
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
 import {
   ChevronDown,
   Sliders,
@@ -21,6 +20,9 @@ import {
   MapPin,
   Star,
   ArrowRight,
+  Search,
+  Users,
+  X,
 } from "lucide-react-native";
 import PlatformMap from "../../src/components/PlatformMap";
 import { api, Spot, Event } from "../../src/api";
@@ -32,13 +34,14 @@ export default function MapScreen() {
   const [spots, setSpots] = useState<Spot[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [selected, setSelected] = useState<Event | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     (async () => {
       const [s, e] = await Promise.all([api.spots(), api.events()]);
       setSpots(s);
       setEvents(e);
-      setSelected(e[0] || null);
+      // No automatic selection — clean initial state
     })();
   }, []);
 
@@ -66,7 +69,7 @@ export default function MapScreen() {
           );
         }}
       >
-        {/* Web preview marker overlays (since real map isn't available on web) */}
+        {/* Web preview marker overlays */}
         {Platform.OS === "web" &&
           events.map((ev, i) => (
             <TouchableOpacity
@@ -76,8 +79,8 @@ export default function MapScreen() {
               style={[
                 styles.webMarker,
                 {
-                  top: 200 + (i * 80) + (i % 2 === 0 ? 30 : 0),
-                  left: 60 + (i * 50) + (i % 3 === 1 ? 80 : 0),
+                  top: 220 + i * 72 + (i % 2 === 0 ? 30 : 0),
+                  left: 60 + i * 50 + (i % 3 === 1 ? 80 : 0),
                 },
               ]}
             >
@@ -88,7 +91,6 @@ export default function MapScreen() {
             </TouchableOpacity>
           ))}
 
-        {/* Current location pulse — web only decoration */}
         {Platform.OS === "web" && (
           <View style={styles.currentLocWrap} pointerEvents="none">
             <View style={styles.currentLocPulse} />
@@ -97,18 +99,29 @@ export default function MapScreen() {
         )}
       </PlatformMap>
 
-      {/* Top floating bar */}
-      <View style={[styles.topBar, { top: insets.top + 10 }]} pointerEvents="box-none">
-        <TouchableOpacity style={styles.cityShadow} activeOpacity={0.85}>
-          <BlurView intensity={70} tint="light" style={styles.cityBtn}>
-            <MapPin size={14} color={COLORS.blue} strokeWidth={2.4} />
-            <Text style={styles.cityLabel}>San Francisco</Text>
-            <ChevronDown size={14} color={COLORS.text} strokeWidth={2.2} />
-          </BlurView>
-        </TouchableOpacity>
+      {/* TOP CONTROLS — Row 1: Search + Location + Filter */}
+      <View style={[styles.topZone, { top: insets.top + 8 }]} pointerEvents="box-none">
+        <View style={styles.controlsRow}>
+          <View style={styles.searchShadow}>
+            <BlurView intensity={70} tint="light" style={styles.searchBar}>
+              <Search size={16} color={COLORS.textSecondary} strokeWidth={2} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Places, events, people..."
+                placeholderTextColor={COLORS.textTertiary}
+                value={query}
+                onChangeText={setQuery}
+                testID="map-search"
+              />
+              {query.length > 0 && (
+                <TouchableOpacity onPress={() => setQuery("")} hitSlop={8}>
+                  <X size={14} color={COLORS.textSecondary} strokeWidth={2.4} />
+                </TouchableOpacity>
+              )}
+            </BlurView>
+          </View>
 
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <TouchableOpacity style={styles.roundShadow} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.roundShadow} activeOpacity={0.85} testID="locate-me">
             <BlurView intensity={70} tint="light" style={styles.roundBtn}>
               <Crosshair size={18} color={COLORS.text} strokeWidth={2.2} />
             </BlurView>
@@ -117,80 +130,115 @@ export default function MapScreen() {
             style={styles.roundShadow}
             activeOpacity={0.85}
             onPress={() => router.push("/spots" as any)}
-            testID="open-top-spots"
+            testID="map-filter"
           >
             <BlurView intensity={70} tint="light" style={styles.roundBtn}>
               <Sliders size={18} color={COLORS.text} strokeWidth={2.2} />
             </BlurView>
           </TouchableOpacity>
         </View>
+
+        {/* Row 2: My City pill */}
+        <View style={styles.cityRow}>
+          <TouchableOpacity style={styles.cityShadow} activeOpacity={0.85} testID="my-city">
+            <BlurView intensity={70} tint="light" style={styles.cityBtn}>
+              <MapPin size={13} color={COLORS.blue} strokeWidth={2.4} />
+              <Text style={styles.cityLabel}>San Francisco</Text>
+              <ChevronDown size={13} color={COLORS.text} strokeWidth={2.2} />
+            </BlurView>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Center selected event card */}
+      {/* Selected event card — only when a marker is tapped */}
       {selected && (
         <View style={styles.centerCardWrap} pointerEvents="box-none">
           <View style={styles.centerCardShadow}>
             <BlurView intensity={75} tint="light" style={styles.centerCard}>
               <Image source={{ uri: selected.image }} style={styles.centerImg} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.centerTitle} numberOfLines={1}>{selected.title}</Text>
+                <View style={styles.centerTitleRow}>
+                  <Text style={styles.centerTitle} numberOfLines={1}>{selected.title}</Text>
+                  <TouchableOpacity onPress={() => setSelected(null)} hitSlop={10} testID="close-event-card">
+                    <X size={16} color={COLORS.textSecondary} strokeWidth={2.4} />
+                  </TouchableOpacity>
+                </View>
                 <View style={styles.centerMetaRow}>
                   <MapPin size={11} color={COLORS.textSecondary} />
                   <Text style={styles.centerMeta} numberOfLines={1}>{selected.location}</Text>
                 </View>
-                <View style={styles.centerBtnRow}>
-                  <TouchableOpacity style={styles.miniGhost} activeOpacity={0.8}>
-                    <Text style={styles.miniGhostLabel}>Next time</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.miniPrimary}
-                    activeOpacity={0.85}
-                    onPress={() => router.push(`/event/${selected.id}` as any)}
-                  >
-                    <Text style={styles.miniPrimaryLabel}>Going</Text>
-                  </TouchableOpacity>
+                <View style={styles.centerSocial}>
+                  <Users size={11} color={COLORS.blue} strokeWidth={2.2} />
+                  <Text style={styles.centerSocialText}>{selected.member_count} going</Text>
                 </View>
+                <TouchableOpacity
+                  style={styles.centerCTA}
+                  activeOpacity={0.88}
+                  onPress={() => router.push(`/event/${selected.id}` as any)}
+                  testID="open-event"
+                >
+                  <Text style={styles.centerCTALabel}>View event</Text>
+                  <ArrowRight size={13} color="#FFF" strokeWidth={2.4} />
+                </TouchableOpacity>
               </View>
             </BlurView>
           </View>
         </View>
       )}
 
-      {/* Bottom spots carousel */}
-      <View style={styles.bottomWrap} pointerEvents="box-none">
-        <View style={styles.bottomHeader}>
-          <Text style={styles.bottomTitle}>Nearby Spots</Text>
-          <TouchableOpacity onPress={() => router.push("/spots" as any)} activeOpacity={0.8} style={styles.seeAllBtn}>
-            <Text style={styles.seeAll}>Top Spots</Text>
-            <ArrowRight size={14} color={COLORS.blue} strokeWidth={2.4} />
-          </TouchableOpacity>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.carousel}
-        >
-          {spots.map((sp) => (
-            <TouchableOpacity
-              key={sp.id}
-              testID={`map-spot-${sp.id}`}
-              activeOpacity={0.92}
-              style={styles.spotShadow}
+      {/* Bottom Nearby Spots — wrapped in glass panel for readability */}
+      <View style={[styles.bottomWrap, { bottom: 130 }]} pointerEvents="box-none">
+        <View style={styles.bottomPanelShadow}>
+          <BlurView intensity={60} tint="light" style={styles.bottomPanel}>
+            <View style={styles.bottomHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bottomTitle}>Nearby Spots</Text>
+                <Text style={styles.bottomSub}>Curated places near you</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => router.push("/spots" as any)}
+                activeOpacity={0.85}
+                style={styles.seeAllBtn}
+                testID="open-top-spots"
+              >
+                <Text style={styles.seeAll}>Top Spots</Text>
+                <ArrowRight size={13} color={COLORS.blue} strokeWidth={2.4} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.carousel}
             >
-              <BlurView intensity={70} tint="light" style={styles.spotCard}>
-                <Image source={{ uri: sp.image }} style={styles.spotImg} />
-                <View style={styles.spotMeta}>
-                  <Text style={styles.spotName} numberOfLines={1}>{sp.name}</Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                    <Star size={11} color={COLORS.gold} fill={COLORS.gold} />
-                    <Text style={styles.spotRating}>{sp.rating.toFixed(1)}</Text>
-                    <Text style={styles.spotAddr} numberOfLines={1}> · {sp.category}</Text>
+              {spots.map((sp) => (
+                <TouchableOpacity
+                  key={sp.id}
+                  testID={`map-spot-${sp.id}`}
+                  activeOpacity={0.92}
+                  style={styles.spotShadow}
+                >
+                  <View style={styles.spotCard}>
+                    <Image source={{ uri: sp.image }} style={styles.spotImg} />
+                    <View style={styles.spotMeta}>
+                      <Text style={styles.spotName} numberOfLines={1}>{sp.name}</Text>
+                      <View style={styles.spotRow}>
+                        <Star size={11} color={COLORS.gold} fill={COLORS.gold} />
+                        <Text style={styles.spotRating}>{sp.rating.toFixed(1)}</Text>
+                        <Text style={styles.spotDot}> · </Text>
+                        <Text style={styles.spotCat} numberOfLines={1}>{sp.category}</Text>
+                      </View>
+                      <View style={styles.spotSocial}>
+                        <Users size={10} color={COLORS.blue} strokeWidth={2.2} />
+                        <Text style={styles.spotSocialText}>{20 + (sp.id.charCodeAt(2) % 18)} here now</Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </BlurView>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </BlurView>
+        </View>
       </View>
     </View>
   );
@@ -199,29 +247,33 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#EFE9DC" },
 
-  topBar: {
+  topZone: {
     position: "absolute",
     left: SPACING.lg,
     right: SPACING.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     zIndex: 10,
   },
-  cityShadow: { ...SHADOWS.md, borderRadius: RADII.pill },
-  cityBtn: {
+  controlsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  searchShadow: { flex: 1, ...SHADOWS.md, borderRadius: RADII.pill },
+  searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: RADII.pill,
-    backgroundColor: "rgba(255,255,255,0.55)",
+    backgroundColor: "rgba(255,255,255,0.65)",
     borderWidth: 1,
     borderColor: COLORS.glassBorder,
     overflow: "hidden",
   },
-  cityLabel: { ...TYPE.bodyMed, marginHorizontal: 4, fontSize: 14 },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.text,
+    paddingVertical: 0,
+    outlineWidth: 0,
+  } as any,
   roundShadow: { ...SHADOWS.md, borderRadius: 22 },
   roundBtn: {
     width: 44,
@@ -234,6 +286,22 @@ const styles = StyleSheet.create({
     borderColor: COLORS.glassBorder,
     overflow: "hidden",
   },
+
+  cityRow: { marginTop: 10, flexDirection: "row" },
+  cityShadow: { ...SHADOWS.sm, borderRadius: RADII.pill },
+  cityBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: RADII.pill,
+    backgroundColor: "rgba(255,255,255,0.6)",
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    overflow: "hidden",
+  },
+  cityLabel: { ...TYPE.bodyMed, fontSize: 13, marginHorizontal: 2 },
 
   markerWrap: { alignItems: "center", justifyContent: "center" },
   markerGlow: {
@@ -259,7 +327,7 @@ const styles = StyleSheet.create({
 
   currentLocWrap: {
     position: "absolute",
-    top: "50%",
+    top: "48%",
     left: "50%",
     marginLeft: -20,
     marginTop: -20,
@@ -298,68 +366,79 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     padding: 10,
     borderRadius: RADII.xl,
-    backgroundColor: "rgba(255,255,255,0.7)",
+    backgroundColor: "rgba(255,255,255,0.72)",
     borderWidth: 1,
     borderColor: COLORS.glassBorder,
     overflow: "hidden",
-    gap: 10,
+    gap: 12,
     alignItems: "center",
   },
-  centerImg: { width: 80, height: 80, borderRadius: RADII.md },
-  centerTitle: { ...TYPE.h3, fontSize: 16 },
+  centerImg: { width: 84, height: 96, borderRadius: RADII.md },
+  centerTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  centerTitle: { ...TYPE.h3, fontSize: 16, flex: 1 },
   centerMetaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
   centerMeta: { ...TYPE.small, fontSize: 12 },
-  centerBtnRow: { flexDirection: "row", gap: 8, marginTop: 10 },
-  miniGhost: {
+  centerSocial: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6 },
+  centerSocialText: { fontSize: 11, color: COLORS.blue, fontWeight: "700" },
+  centerCTA: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: RADII.pill,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderWidth: 1,
-    borderColor: "rgba(20,40,80,0.08)",
-  },
-  miniGhostLabel: { fontSize: 12, fontWeight: "600", color: COLORS.text },
-  miniPrimary: {
-    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: RADII.pill,
     backgroundColor: COLORS.blue,
   },
-  miniPrimaryLabel: { fontSize: 12, fontWeight: "700", color: "#FFF" },
+  centerCTALabel: { color: "#FFF", fontWeight: "700", fontSize: 12 },
 
+  // Bottom panel
   bottomWrap: {
     position: "absolute",
-    bottom: 110,
-    left: 0,
-    right: 0,
+    left: SPACING.lg,
+    right: SPACING.lg,
+  },
+  bottomPanelShadow: { ...SHADOWS.lg, borderRadius: RADII.xl },
+  bottomPanel: {
+    borderRadius: RADII.xl,
+    backgroundColor: "rgba(255,255,255,0.6)",
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    paddingVertical: 12,
+    overflow: "hidden",
   },
   bottomHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: 16,
     marginBottom: 10,
   },
-  bottomTitle: { ...TYPE.h3, color: COLORS.text },
+  bottomTitle: { ...TYPE.h3, fontSize: 16 },
+  bottomSub: { ...TYPE.small, fontSize: 11, marginTop: 1 },
   seeAllBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  seeAll: { ...TYPE.bodyMed, color: COLORS.blue, fontWeight: "600", fontSize: 13 },
-  carousel: { paddingHorizontal: SPACING.lg, gap: 12 },
-  spotShadow: { ...SHADOWS.md, borderRadius: RADII.lg, marginRight: 12 },
+  seeAll: { color: COLORS.blue, fontWeight: "700", fontSize: 12 },
+  carousel: { paddingHorizontal: 12, gap: 10 },
+  spotShadow: { ...SHADOWS.sm, borderRadius: RADII.lg, marginRight: 10 },
   spotCard: {
-    width: 230,
+    width: 248,
     flexDirection: "row",
     alignItems: "center",
-    padding: 8,
+    padding: 10,
     borderRadius: RADII.lg,
-    backgroundColor: "rgba(255,255,255,0.75)",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: COLORS.glassBorder,
-    overflow: "hidden",
-    gap: 10,
+    gap: 12,
   },
-  spotImg: { width: 52, height: 52, borderRadius: 12 },
+  spotImg: { width: 64, height: 64, borderRadius: 12 },
   spotMeta: { flex: 1 },
   spotName: { ...TYPE.bodyMed, fontSize: 14 },
-  spotRating: { fontSize: 12, color: COLORS.text, fontWeight: "600" },
-  spotAddr: { fontSize: 11, color: COLORS.textSecondary, flex: 1 },
+  spotRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 },
+  spotRating: { fontSize: 12, color: COLORS.text, fontWeight: "700" },
+  spotDot: { fontSize: 12, color: COLORS.textTertiary },
+  spotCat: { fontSize: 11, color: COLORS.textSecondary, flex: 1 },
+  spotSocial: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5 },
+  spotSocialText: { fontSize: 11, color: COLORS.blue, fontWeight: "700" },
 });
