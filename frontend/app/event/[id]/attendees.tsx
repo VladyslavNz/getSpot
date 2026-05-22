@@ -92,22 +92,22 @@ export default function Attendees() {
           </View>
         </View>
 
-        {/* Organizer (fixed) */}
+        {/* Organizer (fixed) — same card style as participants */}
         <Text style={styles.sectionLabel}>Organizer</Text>
         <TouchableOpacity activeOpacity={0.92} style={styles.personShadow}>
-          <View style={[styles.personCard, styles.organizerCard]}>
-            <View style={styles.organizerRing}>
+          <View style={styles.personCard}>
+            <View style={styles.avatarWrap}>
               <Image source={{ uri: event.host_avatar }} style={styles.personAvatar} />
               <View style={styles.crownBadge}>
-                <Crown size={11} color="#FFF" fill="#FFF" strokeWidth={2} />
+                <Crown size={9} color="#FFF" fill="#FFF" strokeWidth={2} />
               </View>
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                 <Text style={styles.personName}>{event.host_name}</Text>
-                <BadgeCheck size={14} color={COLORS.blue} fill={COLORS.blue} />
+                <BadgeCheck size={13} color={COLORS.blue} fill={COLORS.blue} />
               </View>
-              <Text style={styles.organizerRole}>Host · {event.category}</Text>
+              <Text style={styles.personMeta}>Organizer · {event.category}</Text>
             </View>
             <TouchableOpacity activeOpacity={0.85} style={styles.contactBtn} testID="contact-host">
               <Text style={styles.contactLabel}>Contact</Text>
@@ -115,7 +115,7 @@ export default function Attendees() {
           </View>
         </TouchableOpacity>
 
-        {/* Participants header (fixed) */}
+        {/* Participants header (fixed) — pulled higher with extra top room */}
         <View style={styles.participantsHeader}>
           <Text style={styles.sectionLabel}>Participants</Text>
           <View style={styles.smallCount}>
@@ -128,12 +128,12 @@ export default function Attendees() {
       <LinearGradient
         colors={["rgba(245,239,230,0.95)", "rgba(245,239,230,0)"]}
         pointerEvents="none"
-        style={[styles.fadeTop, { top: insets.top + 188 }]}
+        style={[styles.fadeTop, { top: insets.top + 218 }]}
       />
 
       {/* SCROLLABLE participants list only */}
       <ScrollView
-        style={[styles.scroll, { marginTop: insets.top + 188 }]}
+        style={[styles.scroll, { marginTop: insets.top + 218 }]}
         contentContainerStyle={{
           paddingTop: 14,
           paddingBottom: insets.bottom + 40,
@@ -150,7 +150,9 @@ export default function Attendees() {
               style={styles.personShadow}
             >
               <View style={styles.personCard}>
-                <Image source={{ uri: p.avatar }} style={styles.personAvatar} />
+                <View style={styles.avatarWrap}>
+                  <Image source={{ uri: p.avatar }} style={styles.personAvatar} />
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.personName}>{p.name}</Text>
                   <Text style={styles.personMeta}>Joined the event</Text>

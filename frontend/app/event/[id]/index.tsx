@@ -121,8 +121,8 @@ export default function EventDetail() {
                 <ChevronRight size={16} color={COLORS.textTertiary} />
               </View>
 
-              <TouchableOpacity activeOpacity={0.85} style={styles.discussionRow}>
-                <View style={styles.discussionIcon}>
+              <TouchableOpacity activeOpacity={0.85} style={styles.infoRow}>
+                <View style={styles.infoIcon}>
                   <MessageSquare size={16} color={COLORS.text} strokeWidth={2} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -244,7 +244,6 @@ export default function EventDetail() {
             />
             <View style={styles.bottomLeft}>
               <Text style={styles.freeLabel}>Free</Text>
-              <Text style={styles.freeSub}>Open to all · RSVP to join</Text>
             </View>
 
             <TouchableOpacity
@@ -486,9 +485,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.glassBorder,
     overflow: "hidden",
   },
-  bottomLeft: { flex: 1, paddingLeft: 4 },
+  bottomLeft: { flex: 1, paddingLeft: 4, justifyContent: "center" },
   freeLabel: { fontSize: 20, fontWeight: "800", color: COLORS.text, letterSpacing: -0.5 },
-  freeSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2, fontWeight: "500" },
   joinBtnShadow: {
     shadowColor: "#1A3252",
     shadowOpacity: 0.25,
