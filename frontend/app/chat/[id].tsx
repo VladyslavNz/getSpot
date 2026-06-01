@@ -1,7 +1,8 @@
 // Chat conversation — Telegram/iMessage-style architecture
-// - Header BlurView fills from top:0 (no gap, covers status bar area)
+// - Header BlurView fills from top:0 (no gap, covers status bar zone)
 // - FlatList for messages (proper scroll virtualization)
-// - KeyboardAvoidingView with proper offset, synced to native iOS keyboard events
+// - KeyboardAvoidingView w/ behavior="padding" — RN bridges this to iOS
+//   keyboardWillShow/keyboardWillChangeFrame natively, so timing+curve match
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
@@ -13,9 +14,6 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
-  Keyboard,
-  Animated,
-  Easing,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,7 +22,7 @@ import { ChevronLeft, Phone, Video, Send } from "lucide-react-native";
 import { api, Message, ChatPreview } from "../../src/api";
 import { COLORS, RADII, SHADOWS, SPACING, TYPE } from "../../src/theme";
 
-const HEADER_HEIGHT = 56; // header content height (excluding status bar inset)
+const HEADER_HEIGHT = 56; // content height (excluding status bar inset)
 
 export default function ChatDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -35,40 +33,6 @@ export default function ChatDetail() {
   const [chat, setChat] = useState<ChatPreview | null>(null);
   const [input, setInput] = useState("");
   const listRef = useRef<FlatList<Message>>(null);
-
-  // Sync input bar to native iOS keyboard frame/curve
-  // We listen to keyboardWillShow/keyboardWillHide (fire WITH animation, not after)
-  // and animate our own Animated.Value with the same duration the OS reports.
-  const keyboardOffset = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (Platform.OS !== "ios") return;
-    const onShow = (e: any) => {
-      const duration = e?.duration || 250;
-      // Use linear easing because iOS uses a custom curve we approximate via
-      // keyboardEvent's `easing`. Animated.timing with bezier closely matches.
-      Animated.timing(keyboardOffset, {
-        toValue: e?.endCoordinates?.height || 0,
-        duration,
-        easing: Easing.bezier(0.17, 0.59, 0.4, 0.77),
-        useNativeDriver: false,
-      }).start();
-    };
-    const onHide = (e: any) => {
-      const duration = e?.duration || 200;
-      Animated.timing(keyboardOffset, {
-        toValue: 0,
-        duration,
-        easing: Easing.bezier(0.17, 0.59, 0.4, 0.77),
-        useNativeDriver: false,
-      }).start();
-    };
-    const s1 = Keyboard.addListener("keyboardWillShow", onShow);
-    const s2 = Keyboard.addListener("keyboardWillHide", onHide);
-    return () => {
-      s1.remove();
-      s2.remove();
-    };
-  }, [keyboardOffset]);
 
   useEffect(() => {
     if (!id) return;
@@ -82,9 +46,7 @@ export default function ChatDetail() {
     setInput("");
     const newMsg = await api.sendMessage(id, text);
     setMsgs((prev) => [...prev, newMsg]);
-    requestAnimationFrame(() =>
-      listRef.current?.scrollToEnd({ animated: true })
-    );
+    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
   }, [input, id]);
 
   const renderItem = useCallback(({ item: m }: { item: Message }) => {
@@ -99,12 +61,60 @@ export default function ChatDetail() {
     );
   }, []);
 
-  // Total header height = status-bar inset + content area
   const headerTotalHeight = insets.top + HEADER_HEIGHT;
 
   return (
     <View style={styles.root}>
-      {/* === FIXED HEADER — BlurView fills from top: 0 through status bar === */}
+      {/* === KAV is the FLEX:1 PARENT — handles keyboard natively === */}
+      <KeyboardAvoidingView
+        style={styles.kav}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+      >
+        {/* List sits between header and input. paddingTop reserves header height. */}
+        <FlatList
+          ref={listRef}
+          style={styles.list}
+          data={msgs}
+          keyExtractor={(m) => m.id}
+          renderItem={renderItem}
+          contentContainerStyle={[styles.listContent, { paddingTop: headerTotalHeight + 8 }]}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+          initialNumToRender={20}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        />
+
+        {/* Input bar — sits at bottom of KAV, moves with keyboard */}
+        <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+          <BlurView intensity={70} tint="light" style={styles.inputBlur}>
+            <TextInput
+              style={styles.inputField}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Type a message"
+              placeholderTextColor={COLORS.textTertiary}
+              testID="chat-input"
+              returnKeyType="send"
+              onSubmitEditing={send}
+              multiline
+              maxLength={1000}
+              blurOnSubmit={false}
+            />
+            <TouchableOpacity
+              onPress={send}
+              style={styles.sendBtn}
+              testID="chat-send"
+              activeOpacity={0.85}
+            >
+              <Send size={18} color="#FFF" strokeWidth={2.2} />
+            </TouchableOpacity>
+          </BlurView>
+        </View>
+      </KeyboardAvoidingView>
+
+      {/* === FIXED HEADER — BlurView covers top:0 (status bar + content) === */}
       <BlurView intensity={70} tint="light" style={[styles.header, { height: headerTotalHeight }]}>
         <View style={[styles.headerInner, { paddingTop: insets.top }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="chat-back">
@@ -132,48 +142,6 @@ export default function ChatDetail() {
           </View>
         </View>
       </BlurView>
-
-      {/* === BODY: messages + input. KeyboardAvoidingView wraps everything below header === */}
-      <KeyboardAvoidingView
-        style={[styles.kav, { paddingTop: headerTotalHeight }]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
-      >
-        <FlatList
-          ref={listRef}
-          style={styles.list}
-          data={msgs}
-          keyExtractor={(m) => m.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
-          initialNumToRender={20}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-        />
-
-        {/* Input bar — sits at the bottom of the KAV padded area */}
-        <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-          <BlurView intensity={70} tint="light" style={styles.inputBlur}>
-            <TextInput
-              style={styles.inputField}
-              value={input}
-              onChangeText={setInput}
-              placeholder="Type a message"
-              placeholderTextColor={COLORS.textTertiary}
-              testID="chat-input"
-              returnKeyType="send"
-              onSubmitEditing={send}
-              multiline
-              maxLength={1000}
-            />
-            <TouchableOpacity onPress={send} style={styles.sendBtn} testID="chat-send" activeOpacity={0.85}>
-              <Send size={18} color="#FFF" strokeWidth={2.2} />
-            </TouchableOpacity>
-          </BlurView>
-        </View>
-      </KeyboardAvoidingView>
     </View>
   );
 }
