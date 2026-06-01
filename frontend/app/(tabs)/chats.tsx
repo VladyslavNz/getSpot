@@ -1,15 +1,16 @@
-// Chats tab — list of conversations
-import React, { useEffect, useState } from "react";
+// Chats list — FIXED header/search/active row + FlatList for the conversations only
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   Image,
   TextInput,
+  ScrollView,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
 import { Search, Edit3 } from "lucide-react-native";
@@ -17,7 +18,6 @@ import { api, ChatPreview } from "../../src/api";
 import { COLORS, RADII, SHADOWS, SPACING, TYPE } from "../../src/theme";
 
 export default function ChatsScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [chats, setChats] = useState<ChatPreview[]>([]);
   const [query, setQuery] = useState("");
@@ -32,13 +32,50 @@ export default function ChatsScreen() {
       c.last_message.toLowerCase().includes(query.toLowerCase())
   );
 
-  return (
-    <View style={{ flex: 1 }}>
-      <ScrollView
-        style={styles.root}
-        contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 140 }}
-        showsVerticalScrollIndicator={false}
+  const onlineChats = chats.filter((c) => c.online);
+
+  const renderChat = useCallback(
+    ({ item: c }: { item: ChatPreview }) => (
+      <TouchableOpacity
+        testID={`chat-${c.id}`}
+        activeOpacity={0.85}
+        onPress={() => router.push(`/chat/${c.id}` as any)}
+        style={styles.chatShadow}
       >
+        <BlurView intensity={50} tint="light" style={styles.chatCard}>
+          <View style={styles.avatarWrap}>
+            <Image source={{ uri: c.avatar }} style={styles.chatAvatar} />
+            {c.online && <View style={styles.onlineDotSmall} />}
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={styles.chatRow1}>
+              <Text style={styles.chatName} numberOfLines={1}>{c.name}</Text>
+              <Text style={styles.chatTime}>{c.time}</Text>
+            </View>
+            <View style={styles.chatRow2}>
+              <Text
+                style={[styles.chatMsg, c.unread > 0 && styles.chatMsgUnread]}
+                numberOfLines={1}
+              >
+                {c.last_message}
+              </Text>
+              {c.unread > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadCount}>{c.unread}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </BlurView>
+      </TouchableOpacity>
+    ),
+    [router]
+  );
+
+  return (
+    <SafeAreaView style={styles.root} edges={["top"]}>
+      {/* === FIXED TOP ZONE === */}
+      <View style={styles.fixedTop}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Messages</Text>
@@ -51,7 +88,6 @@ export default function ChatsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Search */}
         <View style={styles.searchShadow}>
           <BlurView intensity={60} tint="light" style={styles.search}>
             <Search size={16} color={COLORS.textSecondary} strokeWidth={2} />
@@ -62,79 +98,63 @@ export default function ChatsScreen() {
               value={query}
               onChangeText={setQuery}
               testID="chat-search"
+              returnKeyType="search"
             />
           </BlurView>
         </View>
 
-        {/* Active (online) row */}
-        <Text style={styles.sectionTitle}>Active now</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.activeRow}
-        >
-          {chats.filter((c) => c.online).map((c) => (
-            <TouchableOpacity
-              key={c.id}
-              style={styles.activeItem}
-              activeOpacity={0.85}
-              onPress={() => router.push(`/chat/${c.id}` as any)}
+        {onlineChats.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Active now</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.activeRow}
             >
-              <View style={styles.activeAvatarWrap}>
-                <Image source={{ uri: c.avatar }} style={styles.activeAvatar} />
-                <View style={styles.onlineDot} />
-              </View>
-              <Text numberOfLines={1} style={styles.activeName}>
-                {c.name.split(" ")[0]}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+              {onlineChats.map((c) => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={styles.activeItem}
+                  activeOpacity={0.85}
+                  onPress={() => router.push(`/chat/${c.id}` as any)}
+                >
+                  <View style={styles.activeAvatarWrap}>
+                    <Image source={{ uri: c.avatar }} style={styles.activeAvatar} />
+                    <View style={styles.onlineDot} />
+                  </View>
+                  <Text numberOfLines={1} style={styles.activeName}>
+                    {c.name.split(" ")[0]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        )}
 
         <Text style={styles.sectionTitle}>All chats</Text>
+      </View>
 
-        {filtered.map((c) => (
-          <TouchableOpacity
-            key={c.id}
-            testID={`chat-${c.id}`}
-            activeOpacity={0.85}
-            onPress={() => router.push(`/chat/${c.id}` as any)}
-            style={styles.chatShadow}
-          >
-            <BlurView intensity={50} tint="light" style={styles.chatCard}>
-              <View style={styles.avatarWrap}>
-                <Image source={{ uri: c.avatar }} style={styles.chatAvatar} />
-                {c.online && <View style={styles.onlineDotSmall} />}
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={styles.chatRow1}>
-                  <Text style={styles.chatName} numberOfLines={1}>{c.name}</Text>
-                  <Text style={styles.chatTime}>{c.time}</Text>
-                </View>
-                <View style={styles.chatRow2}>
-                  <Text
-                    style={[styles.chatMsg, c.unread > 0 && styles.chatMsgUnread]}
-                    numberOfLines={1}
-                  >
-                    {c.last_message}
-                  </Text>
-                  {c.unread > 0 && (
-                    <View style={styles.unreadBadge}>
-                      <Text style={styles.unreadCount}>{c.unread}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </BlurView>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
+      {/* === SCROLLABLE LIST ONLY === */}
+      <FlatList
+        style={styles.list}
+        data={filtered}
+        keyExtractor={(c) => c.id}
+        renderItem={renderChat}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        initialNumToRender={10}
+        removeClippedSubviews
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  fixedTop: { paddingTop: 6 },
+  list: { flex: 1 },
+  listContent: { paddingTop: 4, paddingBottom: 140 },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -169,6 +189,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   searchInput: { flex: 1, fontSize: 14, color: COLORS.text, paddingVertical: 0, outlineWidth: 0 } as any,
+
   sectionTitle: {
     ...TYPE.caption,
     color: COLORS.textSecondary,
@@ -195,6 +216,7 @@ const styles = StyleSheet.create({
     borderColor: "#FFF",
   },
   activeName: { marginTop: 6, fontSize: 11, color: COLORS.text, fontWeight: "500" },
+
   chatShadow: { ...SHADOWS.sm, marginHorizontal: SPACING.lg, marginBottom: 10, borderRadius: RADII.lg },
   chatCard: {
     flexDirection: "row",

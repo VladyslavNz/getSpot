@@ -1,15 +1,21 @@
-// Chat detail screen
-import React, { useEffect, useRef, useState } from "react";
+// Chat conversation — Telegram/iMessage-style architecture
+// - Header BlurView fills from top:0 (no gap, covers status bar area)
+// - FlatList for messages (proper scroll virtualization)
+// - KeyboardAvoidingView with proper offset, synced to native iOS keyboard events
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TextInput,
   TouchableOpacity,
   Image,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
+  Animated,
+  Easing,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,14 +24,51 @@ import { ChevronLeft, Phone, Video, Send } from "lucide-react-native";
 import { api, Message, ChatPreview } from "../../src/api";
 import { COLORS, RADII, SHADOWS, SPACING, TYPE } from "../../src/theme";
 
+const HEADER_HEIGHT = 56; // header content height (excluding status bar inset)
+
 export default function ChatDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
   const [msgs, setMsgs] = useState<Message[]>([]);
   const [chat, setChat] = useState<ChatPreview | null>(null);
   const [input, setInput] = useState("");
-  const scrollRef = useRef<ScrollView>(null);
+  const listRef = useRef<FlatList<Message>>(null);
+
+  // Sync input bar to native iOS keyboard frame/curve
+  // We listen to keyboardWillShow/keyboardWillHide (fire WITH animation, not after)
+  // and animate our own Animated.Value with the same duration the OS reports.
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const onShow = (e: any) => {
+      const duration = e?.duration || 250;
+      // Use linear easing because iOS uses a custom curve we approximate via
+      // keyboardEvent's `easing`. Animated.timing with bezier closely matches.
+      Animated.timing(keyboardOffset, {
+        toValue: e?.endCoordinates?.height || 0,
+        duration,
+        easing: Easing.bezier(0.17, 0.59, 0.4, 0.77),
+        useNativeDriver: false,
+      }).start();
+    };
+    const onHide = (e: any) => {
+      const duration = e?.duration || 200;
+      Animated.timing(keyboardOffset, {
+        toValue: 0,
+        duration,
+        easing: Easing.bezier(0.17, 0.59, 0.4, 0.77),
+        useNativeDriver: false,
+      }).start();
+    };
+    const s1 = Keyboard.addListener("keyboardWillShow", onShow);
+    const s2 = Keyboard.addListener("keyboardWillHide", onHide);
+    return () => {
+      s1.remove();
+      s2.remove();
+    };
+  }, [keyboardOffset]);
 
   useEffect(() => {
     if (!id) return;
@@ -33,20 +76,37 @@ export default function ChatDetail() {
     api.chats().then((cs) => setChat(cs.find((c) => c.id === id) || null));
   }, [id]);
 
-  const send = async () => {
+  const send = useCallback(async () => {
     if (!input.trim() || !id) return;
     const text = input;
     setInput("");
     const newMsg = await api.sendMessage(id, text);
     setMsgs((prev) => [...prev, newMsg]);
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
-  };
+    requestAnimationFrame(() =>
+      listRef.current?.scrollToEnd({ animated: true })
+    );
+  }, [input, id]);
+
+  const renderItem = useCallback(({ item: m }: { item: Message }) => {
+    const mine = m.sender === "me";
+    return (
+      <View style={[styles.bubbleRow, { justifyContent: mine ? "flex-end" : "flex-start" }]}>
+        <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
+          <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{m.text}</Text>
+          <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMine]}>{m.time}</Text>
+        </View>
+      </View>
+    );
+  }, []);
+
+  // Total header height = status-bar inset + content area
+  const headerTotalHeight = insets.top + HEADER_HEIGHT;
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <BlurView intensity={70} tint="light" style={styles.headerBlur}>
+    <View style={styles.root}>
+      {/* === FIXED HEADER — BlurView fills from top: 0 through status bar === */}
+      <BlurView intensity={70} tint="light" style={[styles.header, { height: headerTotalHeight }]}>
+        <View style={[styles.headerInner, { paddingTop: insets.top }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="chat-back">
             <ChevronLeft size={22} color={COLORS.text} strokeWidth={2.4} />
           </TouchableOpacity>
@@ -56,8 +116,8 @@ export default function ChatDetail() {
                 <Image source={{ uri: chat.avatar }} style={styles.headerAvatar} />
                 {chat.online && <View style={styles.headerOnline} />}
               </View>
-              <View>
-                <Text style={styles.headerName}>{chat.name}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.headerName} numberOfLines={1}>{chat.name}</Text>
                 <Text style={styles.headerStatus}>{chat.online ? "Active now" : "Offline"}</Text>
               </View>
             </View>
@@ -70,40 +130,31 @@ export default function ChatDetail() {
               <Video size={18} color={COLORS.blue} strokeWidth={2.2} />
             </TouchableOpacity>
           </View>
-        </BlurView>
-      </View>
+        </View>
+      </BlurView>
 
+      {/* === BODY: messages + input. KeyboardAvoidingView wraps everything below header === */}
       <KeyboardAvoidingView
+        style={[styles.kav, { paddingTop: headerTotalHeight }]}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-        keyboardVerticalOffset={10}
+        keyboardVerticalOffset={0}
       >
-        <ScrollView
-          ref={scrollRef}
+        <FlatList
+          ref={listRef}
           style={styles.list}
-          contentContainerStyle={{ padding: SPACING.lg, paddingTop: 110, paddingBottom: 80 }}
-          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
-        >
-          {msgs.map((m) => {
-            const mine = m.sender === "me";
-            return (
-              <View key={m.id} style={[styles.bubbleRow, { justifyContent: mine ? "flex-end" : "flex-start" }]}>
-                <View
-                  style={[
-                    styles.bubble,
-                    mine ? styles.bubbleMine : styles.bubbleTheirs,
-                  ]}
-                >
-                  <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{m.text}</Text>
-                  <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMine]}>{m.time}</Text>
-                </View>
-              </View>
-            );
-          })}
-        </ScrollView>
+          data={msgs}
+          keyExtractor={(m) => m.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+          initialNumToRender={20}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        />
 
-        {/* Input */}
-        <View style={[styles.inputBar, { paddingBottom: insets.bottom + 12 }]}>
+        {/* Input bar — sits at the bottom of the KAV padded area */}
+        <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
           <BlurView intensity={70} tint="light" style={styles.inputBlur}>
             <TextInput
               style={styles.inputField}
@@ -114,8 +165,10 @@ export default function ChatDetail() {
               testID="chat-input"
               returnKeyType="send"
               onSubmitEditing={send}
+              multiline
+              maxLength={1000}
             />
-            <TouchableOpacity onPress={send} style={styles.sendBtn} testID="chat-send">
+            <TouchableOpacity onPress={send} style={styles.sendBtn} testID="chat-send" activeOpacity={0.85}>
               <Send size={18} color="#FFF" strokeWidth={2.2} />
             </TouchableOpacity>
           </BlurView>
@@ -126,38 +179,56 @@ export default function ChatDetail() {
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: COLORS.bg },
+
+  // Header — absolute, fills from top:0 (covers status bar zone seamlessly)
   header: {
     position: "absolute",
-    left: 0, right: 0, top: 0,
+    left: 0,
+    right: 0,
+    top: 0,
     zIndex: 10,
-  },
-  headerBlur: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 4,
     backgroundColor: "rgba(255,255,255,0.7)",
     borderBottomWidth: 1,
     borderBottomColor: COLORS.glassBorder,
+    overflow: "hidden",
+  },
+  headerInner: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    gap: 4,
   },
   backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   headerCenter: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   headerAvatarWrap: { position: "relative" },
   headerAvatar: { width: 36, height: 36, borderRadius: 18 },
   headerOnline: {
-    position: "absolute", bottom: -1, right: -1, width: 11, height: 11, borderRadius: 5.5,
-    backgroundColor: COLORS.success, borderWidth: 2, borderColor: "#FFF",
+    position: "absolute",
+    bottom: -1,
+    right: -1,
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    backgroundColor: COLORS.success,
+    borderWidth: 2,
+    borderColor: "#FFF",
   },
   headerName: { ...TYPE.bodyMed, fontSize: 15 },
   headerStatus: { fontSize: 11, color: COLORS.success, fontWeight: "500", marginTop: 1 },
   headerIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
 
+  kav: { flex: 1 },
   list: { flex: 1 },
+  listContent: { padding: SPACING.lg, paddingBottom: 12 },
+
   bubbleRow: { flexDirection: "row", marginBottom: 8 },
   bubble: {
-    maxWidth: "75%",
-    paddingHorizontal: 14, paddingVertical: 10,
+    maxWidth: "78%",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 20,
   },
   bubbleMine: {
@@ -166,7 +237,7 @@ const styles = StyleSheet.create({
     ...SHADOWS.sm,
   },
   bubbleTheirs: {
-    backgroundColor: "rgba(255,255,255,0.92)",
+    backgroundColor: "rgba(255,255,255,0.95)",
     borderBottomLeftRadius: 6,
     borderWidth: 1,
     borderColor: COLORS.glassBorder,
@@ -179,18 +250,34 @@ const styles = StyleSheet.create({
 
   inputBar: { paddingHorizontal: SPACING.md, paddingTop: 8 },
   inputBlur: {
-    flexDirection: "row", alignItems: "center",
-    paddingLeft: 16, paddingRight: 6, paddingVertical: 6,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingLeft: 16,
+    paddingRight: 6,
+    paddingVertical: 6,
     borderRadius: RADII.pill,
     backgroundColor: "rgba(255,255,255,0.85)",
-    borderWidth: 1, borderColor: COLORS.glassBorder,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
     overflow: "hidden",
     ...SHADOWS.md,
   },
-  inputField: { flex: 1, fontSize: 14, color: COLORS.text, paddingVertical: 8, outlineWidth: 0 } as any,
+  inputField: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.text,
+    paddingVertical: 10,
+    maxHeight: 120,
+    outlineWidth: 0,
+  } as any,
   sendBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: COLORS.blue, alignItems: "center", justifyContent: "center",
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    marginLeft: 4,
+    backgroundColor: COLORS.blue,
+    alignItems: "center",
+    justifyContent: "center",
     ...SHADOWS.glow,
   },
 });
