@@ -81,7 +81,7 @@ export default function Attendees() {
           </TouchableOpacity>
 
           <View style={styles.headerTextWrap}>
-            <Text style={styles.headerTitle}>Who's going</Text>
+            <Text style={styles.headerTitle}>{"Who's going"}</Text>
             <Text style={styles.headerSub} numberOfLines={1}>
               {event.title}
             </Text>

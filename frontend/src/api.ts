@@ -111,8 +111,16 @@ export const api = {
   },
   event: (id: string) => req<Event>(`/events/${id}`),
   toggleGoing: (id: string) => req<{ going: boolean; member_count: number }>(`/events/${id}/going`, { method: "POST" }),
-  createEvent: (body: { title: string; location: string; date: string; description: string; category?: string }) =>
-    req<Event>("/events", { method: "POST", body: JSON.stringify(body) }),
+  createEvent: (body: {
+    title: string;
+    location: string;
+    date: string;
+    description: string;
+    category?: string;
+    event_type?: string;
+    capacity?: number;
+    image?: string;
+  }) => req<Event>("/events", { method: "POST", body: JSON.stringify(body) }),
   spots: (category?: string) => req<Spot[]>(`/spots${category ? `?category=${category}` : ""}`),
   posts: (userId?: string) => req<Post[]>(`/posts${userId ? `?user_id=${userId}` : ""}`),
   chats: () => req<ChatPreview[]>("/chats"),

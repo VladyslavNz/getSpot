@@ -86,3 +86,8 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+.agents/
+skills-lock.json
+imagesforanalysis/
+frontend/.metro-cache/cache/

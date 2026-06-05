@@ -172,7 +172,7 @@ export default function EventDetail() {
           >
             <View style={styles.goingCard}>
               <View style={styles.goingLeft}>
-                <Text style={styles.goingLabel}>Who's going</Text>
+                <Text style={styles.goingLabel}>{"Who's going"}</Text>
                 <Text style={styles.goingCount}>
                   {event.member_count} {event.member_count === 1 ? "person" : "people"}
                 </Text>

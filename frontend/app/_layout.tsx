@@ -25,7 +25,7 @@ export default function RootLayout() {
           />
           <Stack.Screen name="event/[id]/index" options={{ animation: "slide_from_bottom" }} />
           <Stack.Screen name="event/[id]/attendees" />
-          <Stack.Screen name="chat/[id]" />
+          <Stack.Screen name="chat/[id]" options={{ animation: "none" }} />
           <Stack.Screen name="settings" />
           <Stack.Screen name="spots" />
         </Stack>

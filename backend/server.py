@@ -526,7 +526,7 @@ async def send_message(chat_id: str, req: SendMessageReq):
         chat_id=chat_id,
         sender="me",
         text=req.text,
-        time=datetime.now(timezone.utc).strftime("%-I:%M %p"),
+        time=datetime.now(timezone.utc).strftime("%I:%M %p").lstrip("0"),
     )
     MESSAGES.setdefault(chat_id, []).append(new_msg)
     for c in CHATS:
