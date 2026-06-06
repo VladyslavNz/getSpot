@@ -63,6 +63,8 @@ export type Spot = {
   latitude: number;
   longitude: number;
   description?: string;
+  recommendation_count?: number;
+  distance_km?: number;
 };
 
 export type Post = {

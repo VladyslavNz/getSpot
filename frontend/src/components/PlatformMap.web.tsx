@@ -1,9 +1,19 @@
 // Web variant — stylized Apple-like map background (no react-native-maps)
+// Updated to match PlatformMap.tsx interface for dual-content map
 import React from "react";
 import { View, StyleSheet, ImageBackground } from "react-native";
 
 const WEB_MAP_BG =
   "https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1600&q=80";
+
+export type MarkerData = {
+  id: string;
+  latitude: number;
+  longitude: number;
+  title?: string;
+  type: "event" | "place";
+  onPress?: () => void;
+};
 
 export default function PlatformMap(props: any) {
   return (
