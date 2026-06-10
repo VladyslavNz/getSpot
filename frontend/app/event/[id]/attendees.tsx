@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     marginHorizontal: SPACING.lg,
     marginBottom: 14,
   },
-  organizerRing: { position: "relative" },
+  avatarWrap: { position: "relative" },
   personAvatar: { width: 46, height: 46, borderRadius: 23 },
   crownBadge: {
     position: "absolute",

@@ -1,19 +1,23 @@
-// Map tab — Community Map with dual-content model: Events & Places
-// Redesigned with segmented filter, distinct markers, and context-specific bottom cards
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+// Map tab — Community Map with interactive Bottom Sheet discovery surface
+// Architecture:
+//   • Map is the primary layer
+//   • Top controls animate into bottom sheet composition via Reanimated interpolation
+//   • Bottom Sheet has 2 snap points: collapsed 18%, full 96%. Half state removed! (Task 4)
+//   • Map opacity de-emphasizes as sheet expands
+//   • Floating action stack (Map Content Filter + Locate Me) on the right side of the map (image15/image10 reference)
+//   • Map Content Filter button opens a compact Bottom Sheet (38% height) for filtering All/Places/Events
+//   • All animations use transform + opacity only (GPU-accelerated) over two-state [0, 1] index range
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   Image,
   TextInput,
   Platform,
   Dimensions,
-  LayoutAnimation,
-  Animated,
-  Easing,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -23,46 +27,47 @@ import {
   Crosshair,
   MapPin,
   Star,
-  ArrowRight,
   Search,
   Users,
   X,
   Calendar,
   Layers,
-  ThumbsUp,
   SlidersHorizontal,
-  Bookmark,
+  ThumbsUp,
 } from "lucide-react-native";
 import Svg, { Polygon } from "react-native-svg";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useDerivedValue,
+  interpolate,
+  Extrapolation,
+  type SharedValue,
+} from "react-native-reanimated";
+import BottomSheet, { BottomSheetModal } from "@gorhom/bottom-sheet";
 import PlatformMap, { MarkerData } from "../../src/components/PlatformMap";
 import { api, Spot, Event } from "../../src/api";
 import { COLORS, RADII, SHADOWS, SPACING, TYPE } from "../../src/theme";
-
-const { width: SCREEN_W } = Dimensions.get("window");
-
-// ─── Mock avatar URLs for participant previews ────────────────────────────────
-const MOCK_AVATARS = [
-  "https://images.unsplash.com/photo-1758600435913-c45b319745ca?crop=entropy&cs=srgb&fm=jpg&w=100&q=80",
-  "https://images.unsplash.com/photo-1758874384842-7e79ce77ed1a?crop=entropy&cs=srgb&fm=jpg&w=100&q=80",
-  "https://images.unsplash.com/photo-1737599819881-df2553a821ad?crop=entropy&cs=srgb&fm=jpg&w=100&q=80",
-];
-
-// ─── Filter mode type ─────────────────────────────────────────────────────────
-type MapFilterMode = "all" | "events" | "places";
-
-// ─── Selected item union type ─────────────────────────────────────────────────
-type SelectedItem =
-  | { type: "event"; data: Event }
-  | { type: "place"; data: Spot }
-  | null;
+import TopSpotsBottomSheet, {
+  TopSpotItem,
+} from "../../src/components/map/TopSpotsBottomSheet";
+import MapContentFilterSheet from "../../src/components/map/MapContentFilterSheet";
+type MapContentFilter = "all" | "events" | "places";
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EVENT MARKER — Hexagonal shape (dynamic, activity)
 // ═══════════════════════════════════════════════════════════════════════════════
-function EventMarkerView({ active, count }: { active?: boolean; count?: number }) {
+const EventMarkerView = React.memo(function EventMarkerView({
+  active,
+  count,
+}: {
+  active?: boolean;
+  count?: number;
+}) {
   const size = count ? 44 : 38;
   const glowSize = size + 18;
-  // Hexagon points for SVG (centered, pointy-top)
   const cx = size / 2;
   const cy = size / 2;
   const r = size / 2 - 2;
@@ -77,7 +82,6 @@ function EventMarkerView({ active, count }: { active?: boolean; count?: number }
       accessibilityLabel={count ? `${count} events in this area` : "Event marker"}
       accessibilityRole="button"
     >
-      {/* Glow ring */}
       <View
         style={[
           markerStyles.eventGlow,
@@ -89,7 +93,6 @@ function EventMarkerView({ active, count }: { active?: boolean; count?: number }
           },
         ]}
       />
-      {/* Hexagon body */}
       <View style={{ width: size, height: size }}>
         <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           <Polygon
@@ -99,7 +102,6 @@ function EventMarkerView({ active, count }: { active?: boolean; count?: number }
             strokeWidth={2.5}
           />
         </Svg>
-        {/* Icon / count overlay */}
         <View style={[markerStyles.eventIconOverlay, { width: size, height: size }]}>
           {count ? (
             <Text style={markerStyles.clusterCount}>{count}</Text>
@@ -108,22 +110,26 @@ function EventMarkerView({ active, count }: { active?: boolean; count?: number }
           )}
         </View>
       </View>
-      {/* Pin tail */}
       <View style={markerStyles.eventTail} />
-      {/* Cluster badge */}
-      {count && (
+      {count ? (
         <View style={markerStyles.clusterBadge}>
           <Calendar size={8} color="#FFF" strokeWidth={2.6} />
         </View>
-      )}
+      ) : null}
     </View>
   );
-}
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PLACE MARKER — Circular pin shape (stable, location)
 // ═══════════════════════════════════════════════════════════════════════════════
-function PlaceMarkerView({ active, count }: { active?: boolean; count?: number }) {
+const PlaceMarkerView = React.memo(function PlaceMarkerView({
+  active,
+  count,
+}: {
+  active?: boolean;
+  count?: number;
+}) {
   const circleSize = count ? 40 : 34;
   const glowSize = circleSize + 16;
 
@@ -133,7 +139,6 @@ function PlaceMarkerView({ active, count }: { active?: boolean; count?: number }
       accessibilityLabel={count ? `${count} places in this area` : "Place marker"}
       accessibilityRole="button"
     >
-      {/* Glow */}
       <View
         style={[
           markerStyles.placeGlow,
@@ -145,7 +150,6 @@ function PlaceMarkerView({ active, count }: { active?: boolean; count?: number }
           },
         ]}
       />
-      {/* Circle body */}
       <View
         style={[
           markerStyles.placeCircle,
@@ -162,361 +166,206 @@ function PlaceMarkerView({ active, count }: { active?: boolean; count?: number }
           <MapPin size={14} color="#FFF" strokeWidth={2.4} />
         )}
       </View>
-      {/* Pin tail */}
       <View style={markerStyles.placeTail} />
-      {/* Cluster badge */}
-      {count && (
+      {count ? (
         <View style={[markerStyles.clusterBadge, { backgroundColor: "#E07A8B" }]}>
           <MapPin size={8} color="#FFF" strokeWidth={2.6} />
         </View>
-      )}
+      ) : null}
     </View>
   );
-}
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// UNIFIED MARKER BOTTOM SHEET — matches image13 visual style
+// INLINE PLACE CARD (for Bottom Sheet)
 // ═══════════════════════════════════════════════════════════════════════════════
-interface MarkerBottomSheetProps {
-  selected: SelectedItem;
-  onClose: () => void;
-  onViewEvent: (id: string) => void;
-  onJoinEvent: (id: string) => void;
-  onViewPlace: (id: string) => void;
-}
-
-function MarkerBottomSheet({
-  selected,
-  onClose,
-  onViewEvent,
-  onJoinEvent,
-  onViewPlace,
-}: MarkerBottomSheetProps) {
-  const [renderedItem, setRenderedItem] = useState<SelectedItem>(null);
-  const [isBookmarked, setIsBookmarked] = useState(false);
-  const slideAnim = React.useRef(new Animated.Value(450)).current;
-
-  useEffect(() => {
-    if (selected) {
-      setRenderedItem(selected);
-      setIsBookmarked(false);
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 280,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: 450,
-        duration: 240,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished && !selected) {
-          setRenderedItem(null);
-        }
-      });
-    }
-  }, [selected, slideAnim]);
-
-  if (!renderedItem) return null;
-
-  const isEvent = renderedItem.type === "event";
-  const itemData = renderedItem.data;
-
-  // Extract shared fields
-  const title = isEvent ? (itemData as Event).title : (itemData as Spot).name;
-  const image = itemData.image;
-  const category = itemData.category;
-  const description = itemData.description;
-  const distance = itemData.distance_km;
-
-  // Formatting date for events
-  const formattedDate = isEvent ? (() => {
-    try {
-      const d = new Date((itemData as Event).date);
-      const now = new Date();
-      const isToday = d.toDateString() === now.toDateString();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const isTomorrow = d.toDateString() === tomorrow.toDateString();
-      const dayLabel = isToday ? "Today" : isTomorrow ? "Tomorrow" : d.toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" });
-      const timeLabel = d.toLocaleTimeString("en", { hour: "numeric", minute: "2-digit" });
-      return `${dayLabel} at ${timeLabel}`;
-    } catch {
-      return (itemData as Event).date;
-    }
-  })() : null;
-
-  return (
-    <Animated.View
-      style={[
-        cardStyles.sheetContainer,
-        {
-          transform: [{ translateY: slideAnim }],
-        },
-      ]}
-      pointerEvents="box-none"
-    >
-      <View style={cardStyles.sheetShadow}>
-        <BlurView intensity={80} tint="light" style={cardStyles.sheetCard}>
-          {/* Drag Handle */}
-          <View style={cardStyles.dragHandle} />
-
-          {/* Hero Image Container */}
-          <View style={cardStyles.heroContainer}>
-            {image ? (
-              <Image source={{ uri: image }} style={cardStyles.heroImage} resizeMode="cover" />
-            ) : (
-              <View style={cardStyles.heroImagePlaceholder}>
-                {isEvent ? (
-                  <Calendar size={48} color={COLORS.textTertiary} strokeWidth={1.5} />
-                ) : (
-                  <MapPin size={48} color={COLORS.textTertiary} strokeWidth={1.5} />
-                )}
-                <Text style={cardStyles.placeholderText}>No Image Available</Text>
-              </View>
-            )}
-
-            {/* Overlaid Action Buttons (Bookmark & Close) */}
-            <View style={cardStyles.overlayButtons}>
-              <TouchableOpacity
-                style={cardStyles.overlayCircleBtn}
-                activeOpacity={0.8}
-                onPress={() => setIsBookmarked(!isBookmarked)}
-                accessibilityLabel={isBookmarked ? "Remove bookmark" : "Add bookmark"}
-              >
-                <Bookmark
-                  size={18}
-                  color={isBookmarked ? COLORS.gold : COLORS.text}
-                  fill={isBookmarked ? COLORS.gold : "transparent"}
-                  strokeWidth={2}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={cardStyles.overlayCircleBtn}
-                activeOpacity={0.8}
-                onPress={onClose}
-                accessibilityLabel="Close information card"
-                testID={isEvent ? "close-event-card" : "close-place-card"}
-              >
-                <X size={18} color={COLORS.text} strokeWidth={2.2} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Content Area */}
-          <ScrollView
-            style={cardStyles.scrollContent}
-            contentContainerStyle={cardStyles.scrollContentContainer}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Category Tag */}
-            <View style={cardStyles.categoryRow}>
-              <View style={[
-                cardStyles.categoryIconBg,
-                { backgroundColor: isEvent ? "rgba(109,148,197,0.12)" : "rgba(224,122,139,0.12)" }
-              ]}>
-                {isEvent ? (
-                  <Calendar size={12} color={COLORS.blue} strokeWidth={2.4} />
-                ) : (
-                  <MapPin size={12} color="#E07A8B" strokeWidth={2.4} />
-                )}
-              </View>
-              <Text style={[cardStyles.categoryText, { color: isEvent ? COLORS.blue : "#E07A8B" }]}>
-                {category || (isEvent ? "Event" : "Place")}
-              </Text>
-            </View>
-
-            {/* Title */}
-            <Text style={cardStyles.sheetTitle} numberOfLines={2}>
-              {title}
-            </Text>
-
-            {/* Address / Location Name (hierarchy matching image13) */}
-            <View style={cardStyles.locationRow}>
-              <MapPin size={13} color={COLORS.textSecondary} strokeWidth={2} />
-              <Text style={cardStyles.locationText} numberOfLines={1}>
-                {isEvent ? (itemData as Event).location : (itemData as Spot).address}
-              </Text>
-            </View>
-
-            {/* Distance / Metadata Row */}
-            <View style={cardStyles.detailsRow}>
-              {distance != null && (
-                <Text style={cardStyles.distanceText}>
-                  {distance.toFixed(1)} km away
-                </Text>
-              )}
-
-              {/* Specific metadata for events */}
-              {isEvent && formattedDate && (
-                <>
-                  <Text style={cardStyles.dotSeparator}>·</Text>
-                  <Text style={cardStyles.dateText} numberOfLines={1}>
-                    {formattedDate}
-                  </Text>
-                </>
-              )}
-
-              {/* Specific metadata for places */}
-              {!isEvent && (itemData as Spot).rating != null && (
-                <>
-                  <Text style={cardStyles.dotSeparator}>·</Text>
-                  <View style={cardStyles.ratingWrap}>
-                    <Star size={11} color={COLORS.gold} fill={COLORS.gold} />
-                    <Text style={cardStyles.ratingText}>
-                      {(itemData as Spot).rating.toFixed(1)}
-                    </Text>
-                  </View>
-                </>
-              )}
-            </View>
-
-            {/* Participant Stack for Events */}
-            {isEvent && (
-              <View style={cardStyles.eventSocialRow}>
-                <View style={cardStyles.avatarStack}>
-                  {MOCK_AVATARS.slice(0, 3).map((uri, i) => (
-                    <Image
-                      key={i}
-                      source={{ uri }}
-                      style={[
-                        cardStyles.avatar,
-                        { marginLeft: i > 0 ? -8 : 0, zIndex: 3 - i },
-                      ]}
-                    />
-                  ))}
-                </View>
-                <Text style={cardStyles.eventSocialText}>
-                  {(itemData as Event).member_count} going
-                </Text>
-              </View>
-            )}
-
-            {/* Recommendation Tag for Places */}
-            {!isEvent && (itemData as Spot).recommendation_count != null && (
-              <View style={cardStyles.placeSocialRow}>
-                <ThumbsUp size={12} color="#E07A8B" strokeWidth={2} />
-                <Text style={cardStyles.placeSocialText}>
-                  {(itemData as Spot).recommendation_count} recommendations
-                </Text>
-              </View>
-            )}
-
-            {/* Short Description */}
-            {description ? (
-              <Text style={cardStyles.sheetDescription} numberOfLines={2}>
-                {description}
-              </Text>
-            ) : null}
-          </ScrollView>
-
-          {/* Divider */}
-          <View style={cardStyles.divider} />
-
-          {/* Primary Action Section */}
-          <View style={cardStyles.actionSection}>
-            {isEvent ? (
-              <View style={cardStyles.buttonGroup}>
-                <TouchableOpacity
-                  style={cardStyles.joinBtn}
-                  activeOpacity={0.85}
-                  onPress={() => onJoinEvent((itemData as Event).id)}
-                  testID="join-event-btn"
-                >
-                  <Users size={14} color="#FFF" strokeWidth={2.4} />
-                  <Text style={cardStyles.joinBtnLabel}>Join Event</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={cardStyles.viewBtn}
-                  activeOpacity={0.85}
-                  onPress={() => onViewEvent((itemData as Event).id)}
-                  testID="view-event-btn"
-                >
-                  <Text style={cardStyles.viewBtnLabel}>View Details</Text>
-                  <ArrowRight size={14} color={COLORS.blue} strokeWidth={2.4} />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={cardStyles.placeActionBtn}
-                activeOpacity={0.85}
-                onPress={() => onViewPlace((itemData as Spot).id)}
-                testID="view-place-btn"
-              >
-                <Text style={cardStyles.placeActionBtnLabel}>View Place Details</Text>
-                <ArrowRight size={14} color="#FFF" strokeWidth={2.4} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </BlurView>
-      </View>
-    </Animated.View>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SEGMENTED FILTER — [ All ] [ Events ] [ Places ]
-// ═══════════════════════════════════════════════════════════════════════════════
-function MapSegmentedFilter({
-  activeFilter,
-  onFilterChange,
-  eventCount,
-  placeCount,
+const PlaceListCard = React.memo(function PlaceListCard({
+  place,
+  isSelected,
 }: {
-  activeFilter: MapFilterMode;
-  onFilterChange: (f: MapFilterMode) => void;
-  eventCount?: number;
-  placeCount?: number;
+  place: Spot;
+  isSelected: boolean;
 }) {
-  const segments: { key: MapFilterMode; label: string; Icon: any; badgeCount?: number; badgeColor: string }[] = [
-    { key: "all", label: "All", Icon: Layers, badgeColor: COLORS.text },
-    { key: "events", label: "Events", Icon: Calendar, badgeCount: eventCount, badgeColor: COLORS.blue },
-    { key: "places", label: "Places", Icon: MapPin, badgeCount: placeCount, badgeColor: "#E07A8B" },
-  ];
-
-  const handlePress = (key: MapFilterMode) => {
-    if (Platform.OS !== "web") {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
-    onFilterChange(key);
-  };
-
   return (
-    <View style={filterStyles.outerShadow}>
-      <BlurView intensity={70} tint="light" style={filterStyles.container}>
-        {segments.map((seg) => {
-          const active = activeFilter === seg.key;
-          return (
-            <TouchableOpacity
-              key={seg.key}
-              testID={`filter-${seg.key}`}
-              activeOpacity={0.85}
-              onPress={() => handlePress(seg.key)}
-              style={[filterStyles.segment, active && filterStyles.segmentActive]}
-            >
-              <seg.Icon
-                size={14}
-                color={active ? seg.badgeColor : COLORS.textSecondary}
-                strokeWidth={2.2}
-              />
-              <Text style={[filterStyles.segLabel, active && { color: COLORS.text, fontWeight: "700" as const }]}>
-                {seg.label}
+    <View
+      style={[
+        cardStyles.card,
+        isSelected ? cardStyles.cardSelected : undefined,
+      ]}
+      testID={`topspot-place-${place.id}`}
+    >
+      {/* Hero Image */}
+      <View style={cardStyles.imageWrap}>
+        <Image source={{ uri: place.image }} style={cardStyles.image} />
+        {/* Category badge */}
+        <View style={[cardStyles.categoryBadge, { backgroundColor: "rgba(224,122,139,0.88)" }]}>
+          <MapPin size={8} color="#FFF" strokeWidth={2.4} />
+          <Text style={cardStyles.categoryBadgeText}>{place.category || "Place"}</Text>
+        </View>
+      </View>
+
+      {/* Content */}
+      <View style={cardStyles.content}>
+        <Text style={cardStyles.name} numberOfLines={1}>
+          {place.name}
+        </Text>
+
+        {/* Rating row */}
+        <View style={cardStyles.metaRow}>
+          <Star size={11} color={COLORS.gold} fill={COLORS.gold} />
+          <Text style={cardStyles.ratingText}>{place.rating.toFixed(1)}</Text>
+          <Text style={cardStyles.dotSep}>·</Text>
+          <Text style={cardStyles.metaText} numberOfLines={1}>
+            {place.category}
+          </Text>
+        </View>
+
+        {/* Location */}
+        <View style={cardStyles.metaRow}>
+          <MapPin size={10} color={COLORS.textTertiary} strokeWidth={2} />
+          <Text style={cardStyles.locationText} numberOfLines={1}>
+            {place.address}
+          </Text>
+        </View>
+
+        {/* Tags + Distance */}
+        <View style={bottomRowStyles.bottomRow}>
+          {place.distance_km != null ? (
+            <Text style={cardStyles.distanceText}>
+              {place.distance_km.toFixed(1)} km
+            </Text>
+          ) : null}
+          {place.recommendation_count != null ? (
+            <View style={cardStyles.attendanceBadge}>
+              <ThumbsUp size={9} color="#E07A8B" strokeWidth={2.2} />
+              <Text style={[cardStyles.attendanceText, { color: "#E07A8B" }]}>
+                {place.recommendation_count}
               </Text>
-              {seg.badgeCount != null && seg.badgeCount > 0 && (
-                <View style={[filterStyles.badge, { backgroundColor: seg.badgeColor }]}>
-                  <Text style={filterStyles.badgeText}>{seg.badgeCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </BlurView>
+            </View>
+          ) : null}
+          {/* Tag pill */}
+          <View style={[cardStyles.tagPill, { backgroundColor: "rgba(224,122,139,0.08)" }]}>
+            <Text style={[cardStyles.tagText, { color: "#E07A8B" }]}>
+              {place.category}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Selected indicator */}
+      {isSelected ? <View style={[cardStyles.selectedBar, { backgroundColor: "#E07A8B" }]} /> : null}
     </View>
   );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INLINE EVENT CARD (for Bottom Sheet)
+// ═══════════════════════════════════════════════════════════════════════════════
+function formatEventDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const day = d.toLocaleDateString("en-US", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+    const time = d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    return `${day} · ${time}`;
+  } catch {
+    return iso;
+  }
 }
+
+const EventListCard = React.memo(function EventListCard({
+  event,
+  isSelected,
+}: {
+  event: Event;
+  isSelected: boolean;
+}) {
+  return (
+    <View
+      style={[
+        cardStyles.card,
+        isSelected ? cardStyles.cardSelected : undefined,
+      ]}
+      testID={`topspot-event-${event.id}`}
+    >
+      {/* Hero Image */}
+      <View style={cardStyles.imageWrap}>
+        <Image source={{ uri: event.image }} style={cardStyles.image} />
+        {/* Date badge */}
+        <View style={cardStyles.dateBadge}>
+          <Text style={cardStyles.dateBadgeDay}>
+            {(() => {
+              try {
+                return new Date(event.date).getDate().toString();
+              } catch {
+                return "?";
+              }
+            })()}
+          </Text>
+          <Text style={cardStyles.dateBadgeMonth}>
+            {(() => {
+              try {
+                return new Date(event.date).toLocaleDateString("en", {
+                  month: "short",
+                });
+              } catch {
+                return "";
+              }
+            })()}
+          </Text>
+        </View>
+      </View>
+
+      {/* Content */}
+      <View style={cardStyles.content}>
+        <Text style={cardStyles.name} numberOfLines={1}>
+          {event.title}
+        </Text>
+
+        {/* Date & Time row */}
+        <View style={cardStyles.metaRow}>
+          <Calendar size={10} color={COLORS.blue} strokeWidth={2.2} />
+          <Text style={[cardStyles.metaText, { color: COLORS.blue }]} numberOfLines={1}>
+            {formatEventDate(event.date)}
+          </Text>
+        </View>
+
+        {/* Location */}
+        <View style={cardStyles.metaRow}>
+          <MapPin size={10} color={COLORS.textTertiary} strokeWidth={2} />
+          <Text style={cardStyles.locationText} numberOfLines={1}>
+            {event.location}
+          </Text>
+        </View>
+
+        {/* Attendance + Tags */}
+        <View style={bottomRowStyles.bottomRow}>
+          <View style={[cardStyles.attendanceBadge, { backgroundColor: "rgba(109,148,197,0.1)" }]}>
+            <Users size={9} color={COLORS.blue} strokeWidth={2.2} />
+            <Text style={[cardStyles.attendanceText, { color: COLORS.blue }]}>
+              {event.member_count} Going
+            </Text>
+          </View>
+          {/* Tag pill */}
+          <View style={[cardStyles.tagPill, { backgroundColor: "rgba(109,148,197,0.08)" }]}>
+            <Text style={[cardStyles.tagText, { color: COLORS.blue }]}>
+              {event.category || event.event_type || "Event"}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Selected indicator */}
+      {isSelected ? <View style={[cardStyles.selectedBar, { backgroundColor: COLORS.blue }]} /> : null}
+    </View>
+  );
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN MAP SCREEN
@@ -525,14 +374,91 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  // Data state
+  // Bottom Sheet References
+  const topSpotsRef = useRef<BottomSheet>(null);
+
+  // Filter Menu sheet visibility state
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+
+  // ── Reanimated shared values for sheet → map/controls synchronization ──
+  // Now ranges from 0 (collapsed) to 1 (fully expanded). Half state removed!
+  const sheetAnimatedIndex = useSharedValue(0);
+  const sheetAnimatedPosition = useSharedValue(SCREEN_H);
+
+  // ── Separate Independent States (Technical Requirements) ──
+  const [mapContentFilter, setMapContentFilter] = useState<MapContentFilter>("all");
+  const [isTopSpotsExpanded, setIsTopSpotsExpanded] = useState(false);
+
+  // ── Derived animated values (GPU-only, no JS thread, based on two snap points [0, 1]) ──
+
+  // Map layer opacity: 1.0 at collapsed (index 0) → 0.35 at fully expanded (index 1)
+  const mapOpacity = useDerivedValue(() =>
+    interpolate(
+      sheetAnimatedIndex.value,
+      [0, 1],
+      [1, 0.35],
+      Extrapolation.CLAMP
+    )
+  );
+
+  // Top controls: translateY shifts controls upward as sheet expands
+  // to save layout space and look compact (subtle 8px shift)
+  const controlsTranslateY = useDerivedValue(() =>
+    interpolate(
+      sheetAnimatedIndex.value,
+      [0, 1],
+      [0, -8],
+      Extrapolation.CLAMP
+    )
+  );
+
+  // Unified topZone header background opacity
+  const topZoneBgStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      sheetAnimatedIndex.value,
+      [0.2, 0.8],
+      [0, 1],
+      Extrapolation.CLAMP
+    );
+    return { opacity };
+  });
+
+  // Individual controls backgrounds (fade out as unified header fades in)
+  const individualBgStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      sheetAnimatedIndex.value,
+      [0.2, 0.8],
+      [1, 0],
+      Extrapolation.CLAMP
+    );
+    return { opacity };
+  });
+
+  // ── Animated styles ──
+  const mapAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: mapOpacity.value,
+  }));
+
+  const controlsAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: controlsTranslateY.value }],
+  }));
+
+  // ── Data state ──
   const [spots, setSpots] = useState<Spot[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
-  const [selectedMarker, setSelectedMarker] = useState<SelectedItem>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<MapFilterMode>("all");
   const [city, setCity] = useState("Gdańsk");
   const [distance, setDistance] = useState("10");
+
+  // Map region control state
+  const [mapRegion, setMapRegion] = useState({
+    latitude: 54.352, // default Gdańsk
+    longitude: 18.6466,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  });
+  const [hasCentered, setHasCentered] = useState(false);
 
   // Load data
   useEffect(() => {
@@ -543,26 +469,42 @@ export default function MapScreen() {
     })();
   }, []);
 
-  // Filtered data based on active filter
+  // Initially center map on loaded data
+  useEffect(() => {
+    if (!hasCentered && (spots.length > 0 || events.length > 0)) {
+      const first = spots[0] || events[0];
+      if (first) {
+        setMapRegion({
+          latitude: first.latitude,
+          longitude: first.longitude,
+          latitudeDelta: 0.04,
+          longitudeDelta: 0.04,
+        });
+        setHasCentered(true);
+      }
+    }
+  }, [spots, events, hasCentered]);
+
+  // Filtered data based on active mapContentFilter
   const filteredEvents = useMemo(() => {
-    if (activeFilter === "places") return [];
+    if (mapContentFilter === "places") return [];
     if (query.trim()) {
       return events.filter((e) =>
         e.title.toLowerCase().includes(query.toLowerCase())
       );
     }
     return events;
-  }, [events, activeFilter, query]);
+  }, [events, mapContentFilter, query]);
 
   const filteredSpots = useMemo(() => {
-    if (activeFilter === "events") return [];
+    if (mapContentFilter === "events") return [];
     if (query.trim()) {
       return spots.filter((s) =>
         s.name.toLowerCase().includes(query.toLowerCase())
       );
     }
     return spots;
-  }, [spots, activeFilter, query]);
+  }, [spots, mapContentFilter, query]);
 
   // Combine markers for the map
   const allMarkers = useMemo<MarkerData[]>(() => {
@@ -573,10 +515,14 @@ export default function MapScreen() {
       title: ev.title,
       type: "event" as const,
       onPress: () => {
-        if (Platform.OS !== "web") {
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        }
-        setSelectedMarker({ type: "event", data: ev });
+        setSelectedItemId(ev.id);
+        // Center on marker on press
+        setMapRegion({
+          latitude: ev.latitude,
+          longitude: ev.longitude,
+          latitudeDelta: 0.03,
+          longitudeDelta: 0.03,
+        });
       },
     }));
     const spotMarkers: MarkerData[] = filteredSpots.map((sp) => ({
@@ -586,10 +532,14 @@ export default function MapScreen() {
       title: sp.name,
       type: "place" as const,
       onPress: () => {
-        if (Platform.OS !== "web") {
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        }
-        setSelectedMarker({ type: "place", data: sp });
+        setSelectedItemId(`spot-${sp.id}`);
+        // Center on marker on press
+        setMapRegion({
+          latitude: sp.latitude,
+          longitude: sp.longitude,
+          latitudeDelta: 0.03,
+          longitudeDelta: 0.03,
+        });
       },
     }));
     return [...eventMarkers, ...spotMarkers];
@@ -597,324 +547,516 @@ export default function MapScreen() {
 
   // Map press — deselect
   const handleMapPress = useCallback(() => {
-    if (selectedMarker) {
-      if (Platform.OS !== "web") {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      }
-      setSelectedMarker(null);
+    if (selectedItemId) {
+      setSelectedItemId(null);
     }
-  }, [selectedMarker]);
+  }, [selectedItemId]);
 
+  // Centering on user geolocation
   const handleLocateMe = useCallback(() => {
-    // Center map on user location
-  }, []);
+    const successCallback = (position: any) => {
+      setMapRegion({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      });
+    };
+
+    const errorCallback = (error: any) => {
+      console.warn("Location error:", error);
+      // Fallback to average coordinate or default city
+      if (spots.length > 0) {
+        setMapRegion({
+          latitude: spots[0].latitude,
+          longitude: spots[0].longitude,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        });
+      } else if (events.length > 0) {
+        setMapRegion({
+          latitude: events[0].latitude,
+          longitude: events[0].longitude,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        });
+      }
+    };
+
+    if (navigator?.geolocation) {
+      navigator.geolocation.getCurrentPosition(successCallback, errorCallback, {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 10000,
+      });
+    } else {
+      errorCallback(new Error("Geolocation not supported"));
+    }
+  }, [spots, events]);
 
   // Render custom marker based on type
-  const renderMarker = useCallback((m: MarkerData) => {
-    if (m.type === "event") {
-      const isActive = selectedMarker?.type === "event" && selectedMarker.data.id === m.id;
-      return <EventMarkerView active={isActive} />;
-    }
-    const spotId = m.id.replace("spot-", "");
-    const isActive = selectedMarker?.type === "place" && selectedMarker.data.id === spotId;
-    return <PlaceMarkerView active={isActive} />;
-  }, [selectedMarker]);
+  const renderMarker = useCallback(
+    (m: MarkerData) => {
+      if (m.type === "event") {
+        const isActive = selectedItemId === m.id;
+        return <EventMarkerView active={isActive} />;
+      }
+      const isActive = selectedItemId === m.id;
+      return <PlaceMarkerView active={isActive} />;
+    },
+    [selectedItemId]
+  );
 
-  // Navigation handlers
-  const handleViewEvent = useCallback((id: string) => {
-    router.push(`/event/${id}` as any);
-  }, [router]);
+  // Bottom Sheet: selecting an item
+  const handleSelectItem = useCallback(
+    (item: TopSpotItem) => {
+      const itemId =
+        item.type === "event" ? item.data.id : `spot-${item.data.id}`;
+      setSelectedItemId(itemId);
 
-  const handleJoinEvent = useCallback((id: string) => {
-    // TODO: integrate with api.toggleGoing
-    router.push(`/event/${id}` as any);
-  }, [router]);
+      // Center on selected item coordinate
+      setMapRegion({
+        latitude: item.data.latitude,
+        longitude: item.data.longitude,
+        latitudeDelta: 0.03,
+        longitudeDelta: 0.03,
+      });
 
-  const handleViewPlace = useCallback((_id: string) => {
-    router.push("/spots" as any);
-  }, [router]);
+      // Navigate to detail on tap if already selected
+      if (selectedItemId === itemId) {
+        if (item.type === "event") {
+          router.push(`/event/${item.data.id}` as any);
+        } else {
+          router.push("/spots" as any);
+        }
+      }
+    },
+    [selectedItemId, router]
+  );
 
-  // Bottom panel items — shows relevant content based on filter
-  const bottomItems = useMemo(() => {
-    if (activeFilter === "events") {
-      return filteredEvents.map((ev) => ({
-        type: "event" as const,
-        id: ev.id,
-        title: ev.title,
-        subtitle: (() => {
-          try {
-            const d = new Date(ev.date);
-            return d.toLocaleTimeString("en", { hour: "numeric", minute: "2-digit" });
-          } catch { return ""; }
-        })(),
-        image: ev.image,
-        meta: `${ev.member_count} going`,
-        metaColor: COLORS.blue,
-        onPress: () => setSelectedMarker({ type: "event", data: ev }),
-      }));
-    }
-    if (activeFilter === "places") {
-      return filteredSpots.map((sp) => ({
-        type: "place" as const,
-        id: sp.id,
-        title: sp.name,
-        subtitle: sp.category,
-        image: sp.image,
-        meta: `${sp.rating.toFixed(1)} ★`,
-        metaColor: COLORS.gold,
-        onPress: () => setSelectedMarker({ type: "place", data: sp }),
-      }));
-    }
-    // "all" mode — interleave
-    const combined = [
-      ...filteredEvents.slice(0, 3).map((ev) => ({
-        type: "event" as const,
-        id: ev.id,
-        title: ev.title,
-        subtitle: (() => {
-          try {
-            const d = new Date(ev.date);
-            return d.toLocaleTimeString("en", { hour: "numeric", minute: "2-digit" });
-          } catch { return ""; }
-        })(),
-        image: ev.image,
-        meta: `${ev.member_count} going`,
-        metaColor: COLORS.blue,
-        onPress: () => setSelectedMarker({ type: "event", data: ev }),
-      })),
-      ...filteredSpots.slice(0, 3).map((sp) => ({
-        type: "place" as const,
-        id: sp.id,
-        title: sp.name,
-        subtitle: sp.category,
-        image: sp.image,
-        meta: `${sp.rating.toFixed(1)} ★`,
-        metaColor: COLORS.gold,
-        onPress: () => setSelectedMarker({ type: "place", data: sp }),
-      })),
-    ];
-    return combined;
-  }, [filteredEvents, filteredSpots, activeFilter]);
+  // Bottom Sheet: render card
+  const renderBottomSheetCard = useCallback(
+    (item: TopSpotItem, isSelected: boolean) => {
+      if (item.type === "event") {
+        return (
+          <EventListCard
+            event={item.data as Event}
+            isSelected={isSelected}
+          />
+        );
+      }
+      return (
+        <PlaceListCard
+          place={item.data as Spot}
+          isSelected={isSelected}
+        />
+      );
+    },
+    []
+  );
+
+  // Sync state for Top Spots Bottom Sheet
+  const handleSheetChange = useCallback((index: number) => {
+    setIsTopSpotsExpanded(index === 1);
+  }, []);
+
+
+
+  // Right-Side Floating Action Stack: Map controls are FIXED to avoid layout shift when sheet expands.
+  const floatingStackStyle = {
+    bottom: SCREEN_H * 0.23, // Positions controls above the 20% Top Spots collapsed sheet
+  };
 
   return (
-    <View style={styles.root}>
-      <PlatformMap
-        initialLatitude={37.7749}
-        initialLongitude={-122.4194}
-        markers={allMarkers}
-        renderCustomMarker={renderMarker}
-        onMapPress={handleMapPress}
-      >
-        {/* Web preview marker overlays */}
-        {Platform.OS === "web" &&
-          allMarkers.map((m, i) => (
-            <TouchableOpacity
-              key={m.id}
-              activeOpacity={0.85}
-              onPress={m.onPress}
-              style={[
-                styles.webMarker,
-                {
-                  top: 200 + i * 68 + (i % 2 === 0 ? 25 : 0),
-                  left: 50 + i * 55 + (i % 3 === 1 ? 70 : 0),
-                },
-              ]}
-            >
-              {m.type === "event" ? (
-                <EventMarkerView active={selectedMarker?.type === "event" && selectedMarker.data.id === m.id} />
-              ) : (
-                <PlaceMarkerView active={selectedMarker?.type === "place" && selectedMarker.data.id === m.id.replace("spot-", "")} />
-              )}
-            </TouchableOpacity>
-          ))}
-
-        {/* Web current location dot */}
-        {Platform.OS === "web" && (
-          <View style={styles.currentLocWrap} pointerEvents="none">
-            <View style={styles.currentLocPulse} />
-            <View style={styles.currentLocDot} />
-          </View>
-        )}
-      </PlatformMap>
-
-      {/* ═══ TOP CONTROLS ═══════════════════════════════════════════════════ */}
-      <View style={[styles.topZone, { top: insets.top + 8 }]} pointerEvents="box-none">
-        {/* Row 1: Search */}
-        <View style={styles.searchShadow}>
-          <BlurView intensity={70} tint="light" style={styles.searchBar}>
-            <Search size={16} color={COLORS.textSecondary} strokeWidth={2} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search Events & Places..."
-              placeholderTextColor={COLORS.textTertiary}
-              value={query}
-              onChangeText={setQuery}
-              testID="map-search"
-            />
-            {query.length > 0 && (
-              <TouchableOpacity onPress={() => setQuery("")} hitSlop={8}>
-                <X size={14} color={COLORS.textSecondary} strokeWidth={2.4} />
-              </TouchableOpacity>
-            )}
-          </BlurView>
-        </View>
-
-        {/* Row 2: City | Radius | Filters */}
-        <View style={styles.filterRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            <TouchableOpacity style={styles.pillShadow} activeOpacity={0.85} testID="city-selector">
-              <BlurView intensity={70} tint="light" style={styles.pillBtn}>
-                <Text style={styles.pillIconEmoji}>📍</Text>
-                <Text style={styles.pillLabel}>{city}</Text>
-                <ChevronDown size={13} color={COLORS.textSecondary} strokeWidth={2.4} />
-              </BlurView>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.pillShadow} activeOpacity={0.85} testID="radius-selector">
-              <BlurView intensity={70} tint="light" style={styles.pillBtn}>
-                <Text style={styles.pillLabel}>Within {distance} km</Text>
-                <ChevronDown size={13} color={COLORS.textSecondary} strokeWidth={2.4} />
-              </BlurView>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.pillShadow} activeOpacity={0.85} testID="filters-btn">
-              <BlurView intensity={70} tint="light" style={styles.pillBtn}>
-                <SlidersHorizontal size={13} color={COLORS.text} strokeWidth={2.4} />
-                <Text style={styles.pillLabel}>Filters</Text>
-              </BlurView>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-
-        {/* Row 3: Segmented filter control */}
-        <View style={styles.segmentRow}>
-          <MapSegmentedFilter
-            activeFilter={activeFilter}
-            onFilterChange={setActiveFilter}
-            eventCount={filteredEvents.length}
-            placeCount={filteredSpots.length}
-          />
-        </View>
-      </View>
-
-      {/* ═══ FLOATING CONTROLS ═══════════════════════════════════════════════ */}
-      <View style={[styles.floatingRightZone, { bottom: 280 }]} pointerEvents="box-none">
-        <TouchableOpacity style={styles.roundShadow} activeOpacity={0.85} testID="locate-me" onPress={handleLocateMe}>
-          <BlurView intensity={70} tint="light" style={styles.roundBtn}>
-            <Crosshair size={18} color={COLORS.text} strokeWidth={2.2} />
-          </BlurView>
-        </TouchableOpacity>
-      </View>
-
-      {/* ═══ SELECTED ITEM CARD ═════════════════════════════════════════════ */}
-      <MarkerBottomSheet
-        selected={selectedMarker}
-        onClose={() => setSelectedMarker(null)}
-        onViewEvent={handleViewEvent}
-        onJoinEvent={handleJoinEvent}
-        onViewPlace={handleViewPlace}
-      />
-
-      {/* ═══ BOTTOM DISCOVERY PANEL ═════════════════════════════════════════ */}
-      {!selectedMarker && (
-        <View style={[styles.bottomWrap, { bottom: 130 }]} pointerEvents="box-none">
-          <View style={styles.bottomPanelShadow}>
-            <BlurView intensity={60} tint="light" style={styles.bottomPanel}>
-              <View style={styles.bottomHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.bottomTitle}>
-                    {activeFilter === "events"
-                      ? "Happening Nearby"
-                      : activeFilter === "places"
-                      ? "Community Places"
-                      : "Discover Nearby"}
-                  </Text>
-                  <Text style={styles.bottomSub}>
-                    {activeFilter === "events"
-                      ? "Activities & gatherings near you"
-                      : activeFilter === "places"
-                      ? "Recommended by the community"
-                      : "Events & places near you"}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => router.push("/spots" as any)}
-                  activeOpacity={0.85}
-                  style={styles.seeAllBtn}
-                  testID="open-top-spots"
+    <GestureHandlerRootView style={styles.root}>
+      {/* ═══ ARCHITECTURAL LAYER 1: MAP LAYER ═══════════════════════════════ */}
+      <View style={StyleSheet.absoluteFill}>
+        {/* ═══ MAP (with animated opacity) ═══════════════════════════════ */}
+      <Animated.View style={[styles.mapLayer, mapAnimatedStyle]}>
+        <PlatformMap
+          initialLatitude={54.352}
+          initialLongitude={18.6466}
+          region={mapRegion}
+          markers={allMarkers}
+          renderCustomMarker={renderMarker}
+          onMapPress={handleMapPress}
+        >
+          {/* Web preview marker overlays */}
+          {Platform.OS === "web"
+            ? allMarkers.map((m, i) => (
+                <Pressable
+                  key={m.id}
+                  onPress={m.onPress}
+                  style={[
+                    styles.webMarker,
+                    {
+                      top: 200 + i * 68 + (i % 2 === 0 ? 25 : 0),
+                      left: 50 + i * 55 + (i % 3 === 1 ? 70 : 0),
+                    },
+                  ]}
                 >
-                  <Text style={styles.seeAll}>See All</Text>
-                  <ArrowRight size={13} color={COLORS.blue} strokeWidth={2.4} />
-                </TouchableOpacity>
-              </View>
+                  {m.type === "event" ? (
+                    <EventMarkerView active={selectedItemId === m.id} />
+                  ) : (
+                    <PlaceMarkerView active={selectedItemId === m.id} />
+                  )}
+                </Pressable>
+              ))
+            : null}
 
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.carousel}
+          {/* Web current location dot */}
+          {Platform.OS === "web" ? (
+            <View style={styles.currentLocWrap} pointerEvents="none">
+              <View style={styles.currentLocPulse} />
+              <View style={styles.currentLocDot} />
+            </View>
+          ) : null}
+        </PlatformMap>
+      </Animated.View>
+
+      {/* ═══ FLOATING ACTION STACK (Right-side, image15/image10 reference) ═════ */}
+      <View style={[styles.floatingStack, floatingStackStyle]} pointerEvents="box-none">
+        {/* Locate Me Button */}
+        <Pressable
+          style={styles.floatingBtn}
+          onPress={handleLocateMe}
+          accessibilityLabel="Center map on current location"
+        >
+          <Crosshair size={22} color={COLORS.blue} strokeWidth={2.4} />
+        </Pressable>
+      </View>
+
+      {/* ═══ TOP CONTROLS (animated with sheet position) ═════════════════════ */}
+      <Animated.View
+        style={[
+          styles.topZone,
+          controlsAnimatedStyle,
+        ]}
+        pointerEvents="box-none"
+      >
+        {/* Unified Header Background */}
+        <Animated.View style={[StyleSheet.absoluteFillObject, topZoneBgStyle, styles.topZoneBg]}>
+          <BlurView intensity={90} tint="light" style={StyleSheet.absoluteFill} />
+        </Animated.View>
+
+        {/* Content Container (Height = insets.top + 108px, Task 2 exact spacing math) */}
+        <View style={[styles.topZoneContent, { paddingTop: insets.top + SPACING.sm }]}>
+          {/* Row 1: Search (height = 48px) */}
+          <View style={styles.searchShadow}>
+            <View style={styles.searchBar}>
+              <Animated.View style={[StyleSheet.absoluteFillObject, individualBgStyle, styles.searchBarBg]}>
+                <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
+              </Animated.View>
+              <View style={styles.searchBarContent}>
+                <Search size={16} color={COLORS.textSecondary} strokeWidth={2} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search Events & Places..."
+                  placeholderTextColor={COLORS.textTertiary}
+                  value={query}
+                  onChangeText={setQuery}
+                  testID="map-search"
+                />
+                {query.length > 0 ? (
+                  <Pressable onPress={() => setQuery("")} hitSlop={8}>
+                    <X size={14} color={COLORS.textSecondary} strokeWidth={2.4} />
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          </View>
+
+          {/* Row 2: Scrollable filter pills (Gdańsk | Within 10 km | Filters) (height = 40px) */}
+          <View style={styles.filterRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterScrollContent}
+              style={styles.filterScroll}
+            >
+              <Pressable
+                style={styles.pillShadow}
+                testID="city-selector"
               >
-                {bottomItems.map((item) => (
-                  <TouchableOpacity
-                    key={`${item.type}-${item.id}`}
-                    testID={`map-${item.type}-${item.id}`}
-                    activeOpacity={0.92}
-                    style={styles.carouselCardShadow}
-                    onPress={item.onPress}
-                  >
-                    <View style={styles.carouselCard}>
-                      {/* Type indicator badge */}
-                      <View style={styles.carouselImgWrap}>
-                        <Image source={{ uri: item.image }} style={styles.carouselImg} />
-                        <View
-                          style={[
-                            styles.typeBadge,
-                            {
-                              backgroundColor:
-                                item.type === "event" ? COLORS.blue : "#E07A8B",
-                            },
-                          ]}
-                        >
-                          {item.type === "event" ? (
-                            <Calendar size={8} color="#FFF" strokeWidth={2.6} />
-                          ) : (
-                            <MapPin size={8} color="#FFF" strokeWidth={2.6} />
-                          )}
-                        </View>
-                      </View>
-                      <View style={styles.carouselMeta}>
-                        <Text style={styles.carouselName} numberOfLines={1}>
-                          {item.title}
-                        </Text>
-                        <Text style={styles.carouselSub} numberOfLines={1}>
-                          {item.subtitle}
-                        </Text>
-                        <View style={styles.carouselSocial}>
-                          {item.type === "event" ? (
-                            <Users size={10} color={item.metaColor} strokeWidth={2.2} />
-                          ) : (
-                            <Star size={10} color={item.metaColor} fill={item.metaColor} />
-                          )}
-                          <Text
-                            style={[
-                              styles.carouselSocialText,
-                              { color: item.metaColor },
-                            ]}
-                          >
-                            {item.meta}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </BlurView>
+                <View style={styles.pillBtn}>
+                  <Animated.View style={[StyleSheet.absoluteFillObject, individualBgStyle, styles.pillBtnBg]}>
+                    <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
+                  </Animated.View>
+                  <View style={styles.pillBtnContent}>
+                    <Text style={styles.pillIconEmoji}>📍</Text>
+                    <Text style={styles.pillLabel}>{city}</Text>
+                    <ChevronDown
+                      size={13}
+                      color={COLORS.textSecondary}
+                      strokeWidth={2.4}
+                    />
+                  </View>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.pillShadow}
+                testID="radius-selector"
+              >
+                <View style={styles.pillBtn}>
+                  <Animated.View style={[StyleSheet.absoluteFillObject, individualBgStyle, styles.pillBtnBg]}>
+                    <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
+                  </Animated.View>
+                  <View style={styles.pillBtnContent}>
+                    <Text style={styles.pillLabel}>Within {distance} km</Text>
+                    <ChevronDown
+                      size={13}
+                      color={COLORS.textSecondary}
+                      strokeWidth={2.4}
+                    />
+                  </View>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.pillShadow}
+                testID="map-filter-selector"
+                onPress={() => setIsFilterMenuOpen(true)}
+              >
+                <View style={styles.pillBtn}>
+                  <Animated.View style={[StyleSheet.absoluteFillObject, individualBgStyle, styles.pillBtnBg]}>
+                    <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
+                  </Animated.View>
+                  <View style={styles.pillBtnContent}>
+                    <SlidersHorizontal
+                      size={13}
+                      color={COLORS.blue}
+                      strokeWidth={2.4}
+                    />
+                    <Text style={styles.pillLabel}>
+                      Show: {mapContentFilter === "all" ? "All" : mapContentFilter === "events" ? "Events" : "Places"}
+                    </Text>
+                    <ChevronDown
+                      size={13}
+                      color={COLORS.textSecondary}
+                      strokeWidth={2.4}
+                    />
+                  </View>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.pillShadow}
+                testID="filters-btn"
+              >
+                <View style={styles.pillBtn}>
+                  <Animated.View style={[StyleSheet.absoluteFillObject, individualBgStyle, styles.pillBtnBg]}>
+                    <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
+                  </Animated.View>
+                  <View style={styles.pillBtnContent}>
+                    <SlidersHorizontal
+                      size={13}
+                      color={COLORS.text}
+                      strokeWidth={2.4}
+                    />
+                    <Text style={styles.pillLabel}>Filters</Text>
+                  </View>
+                </View>
+              </Pressable>
+            </ScrollView>
           </View>
         </View>
-      )}
-    </View>
+      </Animated.View>
+      </View>
+
+      {/* ═══ ARCHITECTURAL LAYER 2: CONTENT LAYER ═══════════════════════════════ */}
+      <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="box-none">
+        {/* ═══ TOP SPOTS BOTTOM SHEET (Task 4 ref forwarded) ═══════════════════ */}
+        <TopSpotsBottomSheet
+          ref={topSpotsRef}
+          events={filteredEvents}
+          places={filteredSpots}
+          selectedItemId={selectedItemId}
+          onSelectItem={handleSelectItem}
+          onSheetChange={handleSheetChange}
+          renderCard={renderBottomSheetCard}
+          animatedIndex={sheetAnimatedIndex}
+          animatedPosition={sheetAnimatedPosition}
+          topInset={insets.top}
+          bottomInset={insets.bottom}
+        />
+
+        {/* ═══ MAP CONTENT FILTER COMPACT SELECTION SHEET ══════════════════════ */}
+        <MapContentFilterSheet
+          visible={isFilterMenuOpen}
+          value={mapContentFilter}
+          onChange={setMapContentFilter}
+          onClose={() => setIsFilterMenuOpen(false)}
+        />
+      </View>
+    </GestureHandlerRootView>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CARD STYLES (used by inline PlaceListCard and EventListCard)
+// ═══════════════════════════════════════════════════════════════════════════════
+const cardStyles = StyleSheet.create({
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: SPACING.md,
+    borderRadius: RADII.lg,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
+    gap: SPACING.lg,
+    overflow: "hidden",
+    ...SHADOWS.sm,
+  },
+  cardSelected: {
+    backgroundColor: "rgba(78, 108, 59, 0.04)",
+    borderColor: "rgba(78, 108, 59, 0.15)",
+    ...SHADOWS.md,
+  },
+  imageWrap: {
+    position: "relative",
+    width: 80,
+    height: 80,
+    borderRadius: RADII.md,
+    overflow: "hidden",
+    backgroundColor: COLORS.cream,
+  },
+  image: {
+    width: 80,
+    height: 80,
+    borderRadius: RADII.md,
+  },
+  categoryBadge: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: RADII.pill,
+  },
+  categoryBadgeText: {
+    fontSize: 8,
+    fontWeight: "700" as const,
+    color: "#FFF",
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.3,
+  },
+  dateBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 28,
+    height: 30,
+    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+    ...SHADOWS.sm,
+  },
+  dateBadgeDay: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: COLORS.text,
+    lineHeight: 15,
+  },
+  dateBadgeMonth: {
+    fontSize: 8,
+    fontWeight: "600" as const,
+    color: COLORS.textSecondary,
+    textTransform: "uppercase" as const,
+    lineHeight: 10,
+  },
+  content: {
+    flex: 1,
+    gap: 3,
+  },
+  name: {
+    ...TYPE.h3,
+    fontSize: 15,
+    fontWeight: "700" as const,
+    color: COLORS.text,
+    letterSpacing: -0.3,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: COLORS.text,
+    letterSpacing: -0.1,
+  },
+  dotSep: {
+    fontSize: 10,
+    color: COLORS.textTertiary,
+    marginHorizontal: 2,
+  },
+  metaText: {
+    fontSize: 11,
+    fontWeight: "500" as const,
+    color: COLORS.textSecondary,
+    flex: 1,
+  },
+  locationText: {
+    fontSize: 11,
+    color: COLORS.textTertiary,
+    flex: 1,
+    letterSpacing: -0.1,
+  },
+  distanceText: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+    color: COLORS.textSecondary,
+    letterSpacing: -0.1,
+  },
+  attendanceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: RADII.pill,
+    backgroundColor: "rgba(224,122,139,0.08)",
+  },
+  attendanceText: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+  },
+  tagPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: RADII.pill,
+  },
+  tagText: {
+    fontSize: 9,
+    fontWeight: "600" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.3,
+  },
+  selectedBar: {
+    position: "absolute",
+    left: 0,
+    top: 12,
+    bottom: 12,
+    width: 3,
+    borderRadius: 2,
+  },
+});
+
+const bottomRowStyles = StyleSheet.create({
+  bottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+  },
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MARKER STYLES
@@ -992,301 +1134,68 @@ const markerStyles = StyleSheet.create({
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// BOTTOM CARD STYLES (Event & Place)
+// FILTER SHEET STYLES (image15 reference)
 // ═══════════════════════════════════════════════════════════════════════════════
-const cardStyles = StyleSheet.create({
-  sheetContainer: {
-    position: "absolute",
-    bottom: 120, // Float above bottom tab bar (similar to old bottom panel)
-    left: SPACING.lg,
-    right: SPACING.lg,
-    zIndex: 20,
+const filterSheetStyles = StyleSheet.create({
+  container: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.lg,
   },
-  sheetShadow: {
-    ...SHADOWS.lg,
-    borderRadius: RADII.xl,
-  },
-  sheetCard: {
-    borderRadius: RADII.xl,
-    backgroundColor: "rgba(255, 255, 255, 0.92)", // Sleek white glassmorphic card
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-    overflow: "hidden",
-    padding: SPACING.md, // Spacing around all elements
-  },
-  dragHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "rgba(0, 0, 0, 0.12)",
-    alignSelf: "center",
+  headerTitle: {
+    ...TYPE.h3,
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.text,
+    textAlign: "center",
     marginBottom: SPACING.sm,
-  },
-  heroContainer: {
-    position: "relative",
-    width: "100%",
-    height: 160,
-    borderRadius: RADII.md,
-    overflow: "hidden",
-    backgroundColor: COLORS.cream,
-  },
-  heroImage: {
-    width: "100%",
-    height: "100%",
-  },
-  heroImagePlaceholder: {
-    width: "100%",
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(20, 40, 80, 0.04)",
-  },
-  placeholderText: {
-    ...TYPE.small,
-    color: COLORS.textTertiary,
-    marginTop: SPACING.xs,
-    fontWeight: "500",
-  },
-  overlayButtons: {
-    position: "absolute",
-    top: SPACING.sm,
-    right: SPACING.sm,
-    flexDirection: "row",
-    gap: SPACING.sm,
-  },
-  overlayCircleBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
-    alignItems: "center",
-    justifyContent: "center",
-    ...SHADOWS.sm,
-  },
-  scrollContent: {
-    maxHeight: 180, // Limit height of scrollable middle section to keep card compact
-    marginTop: SPACING.md,
-  },
-  scrollContentContainer: {
-    paddingBottom: SPACING.xs,
-  },
-  categoryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.sm,
-  },
-  categoryIconBg: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  categoryText: {
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  sheetTitle: {
-    ...TYPE.h2,
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.text,
-    marginTop: SPACING.xs,
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: SPACING.xs,
-  },
-  locationText: {
-    ...TYPE.small,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    flex: 1,
-  },
-  detailsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: SPACING.xs,
-  },
-  distanceText: {
-    ...TYPE.caption,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: "600",
-  },
-  dotSeparator: {
-    marginHorizontal: 6,
-    color: COLORS.textTertiary,
-    fontSize: 12,
-  },
-  dateText: {
-    ...TYPE.caption,
-    fontSize: 12,
-    color: COLORS.blue,
-    fontWeight: "600",
-    flex: 1,
-  },
-  ratingWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  ratingText: {
-    ...TYPE.caption,
-    fontSize: 12,
-    color: COLORS.text,
-    fontWeight: "700",
-  },
-  eventSocialRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.sm,
-    marginTop: SPACING.sm,
-  },
-  avatarStack: {
-    flexDirection: "row",
-  },
-  avatar: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: "#FFF",
-  },
-  eventSocialText: {
-    fontSize: 12,
-    color: COLORS.blue,
-    fontWeight: "700",
-  },
-  placeSocialRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: SPACING.sm,
-  },
-  placeSocialText: {
-    fontSize: 12,
-    color: "#E07A8B",
-    fontWeight: "700",
-  },
-  sheetDescription: {
-    ...TYPE.small,
-    fontSize: 13,
-    lineHeight: 18,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.sm,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.divider,
-    marginVertical: SPACING.md,
+    backgroundColor: COLORS.glassBorderSoft,
+    marginBottom: SPACING.lg,
   },
-  actionSection: {
-    width: "100%",
-  },
-  buttonGroup: {
-    flexDirection: "row",
+  optionsList: {
     gap: SPACING.sm,
   },
-  joinBtn: {
-    flex: 1.2,
+  optionRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    height: 44,
-    borderRadius: RADII.pill,
-    backgroundColor: COLORS.blue,
-    ...SHADOWS.sm,
-  },
-  joinBtnLabel: {
-    color: "#FFF",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  viewBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    height: 44,
-    borderRadius: RADII.pill,
-    backgroundColor: "rgba(109,148,197,0.12)",
+    justifyContent: "space-between",
+    padding: SPACING.lg,
+    borderRadius: RADII.md,
+    backgroundColor: "rgba(20,40,80,0.02)",
     borderWidth: 1,
-    borderColor: "rgba(109,148,197,0.25)",
+    borderColor: "transparent",
   },
-  viewBtnLabel: {
-    color: COLORS.blue,
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  placeActionBtn: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    height: 44,
-    borderRadius: RADII.pill,
-    backgroundColor: "#E07A8B",
-    ...SHADOWS.sm,
-  },
-  placeActionBtnLabel: {
-    color: "#FFF",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SEGMENTED FILTER STYLES
-// ═══════════════════════════════════════════════════════════════════════════════
-const filterStyles = StyleSheet.create({
-  outerShadow: { ...SHADOWS.md, borderRadius: RADII.pill, alignSelf: "flex-start" },
-  container: {
-    flexDirection: "row",
-    padding: 4,
-    borderRadius: RADII.pill,
-    backgroundColor: "rgba(255,255,255,0.6)",
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-    overflow: "hidden",
-  },
-  segment: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: RADII.pill,
-  },
-  segmentActive: {
+  optionRowSelected: {
     backgroundColor: "#FFFFFF",
+    borderColor: COLORS.glassBorderSoft,
     ...SHADOWS.sm,
   },
-  segLabel: {
-    ...TYPE.caption,
-    fontSize: 12,
-    fontWeight: "500" as const,
-    color: COLORS.textSecondary,
+  optionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
   },
-  badge: {
-    minWidth: 18,
-    height: 16,
-    borderRadius: 8,
+  optionLabel: {
+    ...TYPE.bodyMed,
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: COLORS.textTertiary,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
   },
-  badgeText: {
-    color: "#FFF",
-    fontSize: 9,
-    fontWeight: "700" as const,
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
 });
 
@@ -1296,24 +1205,47 @@ const filterStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#EFE9DC" },
 
+  // Map layer — covers full screen, animated opacity as sheet expands
+  mapLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+
   topZone: {
     position: "absolute",
-    left: SPACING.lg,
-    right: SPACING.lg,
-    zIndex: 10,
+    left: 0,
+    right: 0,
+    top: 0,
+    zIndex: 20,
+  },
+  topZoneBg: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.glassBorderSoft,
+  },
+  topZoneContent: {
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: 4, // exactly 4px vertical padding bottom! (Task 2)
   },
   searchShadow: { ...SHADOWS.md, borderRadius: RADII.pill },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
     borderRadius: RADII.pill,
-    backgroundColor: "rgba(255,255,255,0.75)",
+    overflow: "hidden",
+    height: 48,
+  },
+  searchBarBg: {
     borderWidth: 1,
     borderColor: COLORS.glassBorder,
-    overflow: "hidden",
+    borderRadius: RADII.pill,
+  },
+  searchBarContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: SPACING.lg,
+    height: 48,
+    flex: 1,
   },
   searchInput: {
     flex: 1,
@@ -1324,43 +1256,58 @@ const styles = StyleSheet.create({
     outlineWidth: 0,
   } as any,
 
-  filterRow: { marginTop: 10, flexDirection: "row" },
-  pillShadow: { ...SHADOWS.sm, borderRadius: RADII.pill },
+  filterRow: {
+    marginTop: SPACING.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+  },
+  filterScroll: { flex: 1 },
+  filterScrollContent: { gap: SPACING.sm },
+  pillShadow: { ...SHADOWS.sm, borderRadius: RADII.pill, height: 40 },
   pillBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
     borderRadius: RADII.pill,
-    backgroundColor: "rgba(255,255,255,0.75)",
+    overflow: "hidden",
+    height: 40,
+  },
+  pillBtnBg: {
     borderWidth: 1,
     borderColor: COLORS.glassBorder,
-    overflow: "hidden",
+    borderRadius: RADII.pill,
+  },
+  pillBtnContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    height: 40,
   },
   pillIconEmoji: { fontSize: 11 },
-  pillLabel: { ...TYPE.bodyMed, fontSize: 13, fontWeight: "600" as const },
+  pillLabel: {
+    ...TYPE.bodyMed,
+    fontSize: 13,
+    fontWeight: "600" as const,
+  },
 
-  segmentRow: { marginTop: 10 },
-
-  // Floating controls
-  floatingRightZone: {
+  // Floating button stack (image15/image10 reference)
+  floatingStack: {
     position: "absolute",
     right: SPACING.lg,
-    zIndex: 10,
-    alignItems: "center",
+    zIndex: 2,
+    gap: SPACING.sm,
   },
-  roundShadow: { ...SHADOWS.md, borderRadius: 22 },
-  roundBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  floatingBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.85)",
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-    overflow: "hidden",
+    borderColor: COLORS.glassBorderSoft,
+    ...SHADOWS.md,
   },
 
   // Markers (web overlay)
@@ -1394,70 +1341,5 @@ const styles = StyleSheet.create({
     borderColor: "#FFF",
     ...SHADOWS.md,
   },
-
-  // Bottom discovery panel
-  bottomWrap: {
-    position: "absolute",
-    left: SPACING.lg,
-    right: SPACING.lg,
-  },
-  bottomPanelShadow: { ...SHADOWS.lg, borderRadius: RADII.xl },
-  bottomPanel: {
-    borderRadius: RADII.xl,
-    backgroundColor: "rgba(255,255,255,0.6)",
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-    paddingVertical: 12,
-    overflow: "hidden",
-  },
-  bottomHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-  bottomTitle: { ...TYPE.h3, fontSize: 16 },
-  bottomSub: { ...TYPE.small, fontSize: 11, marginTop: 1 },
-  seeAllBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  seeAll: { color: COLORS.blue, fontWeight: "700" as const, fontSize: 12 },
-  carousel: { paddingHorizontal: 12, gap: 10 },
-
-  // Carousel cards (unified for events & places)
-  carouselCardShadow: { ...SHADOWS.sm, borderRadius: RADII.lg, marginRight: 10 },
-  carouselCard: {
-    width: 248,
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 10,
-    borderRadius: RADII.lg,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-    gap: 12,
-  },
-  carouselImgWrap: { position: "relative" },
-  carouselImg: { width: 64, height: 64, borderRadius: 12 },
-  typeBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: "#FFF",
-  },
-  carouselMeta: { flex: 1 },
-  carouselName: { ...TYPE.bodyMed, fontSize: 14 },
-  carouselSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
-  carouselSocial: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 5,
-  },
-  carouselSocialText: { fontSize: 11, fontWeight: "700" as const },
 });
+

@@ -1,6 +1,6 @@
 // Native variant — react-native-maps with Apple-style styling
 // Enhanced to support dual marker types (Events + Places) for the community map
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 import { MAP_STYLE } from "../theme";
@@ -17,6 +17,12 @@ export type MarkerData = {
 type Props = {
   initialLatitude: number;
   initialLongitude: number;
+  region?: {
+    latitude: number;
+    longitude: number;
+    latitudeDelta: number;
+    longitudeDelta: number;
+  };
   markers?: MarkerData[];
   renderCustomMarker?: (m: MarkerData) => React.ReactNode;
   children?: React.ReactNode;
@@ -25,9 +31,19 @@ type Props = {
 };
 
 export default function PlatformMap(props: Props) {
+  const mapRef = useRef<MapView>(null);
+
+  // Smoothly animate to new region when region prop changes
+  useEffect(() => {
+    if (props.region && mapRef.current) {
+      mapRef.current.animateToRegion(props.region, 800);
+    }
+  }, [props.region]);
+
   return (
     <View style={[{ flex: 1 }, props.style]}>
       <MapView
+        ref={mapRef}
         provider={PROVIDER_DEFAULT}
         style={StyleSheet.absoluteFill}
         customMapStyle={MAP_STYLE}
@@ -63,3 +79,4 @@ export default function PlatformMap(props: Props) {
     </View>
   );
 }
+
