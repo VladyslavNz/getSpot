@@ -7,7 +7,13 @@
 //   • Floating action stack (Map Content Filter + Locate Me) on the right side of the map (image15/image10 reference)
 //   • Map Content Filter button opens a compact Bottom Sheet (38% height) for filtering All/Places/Events
 //   • All animations use transform + opacity only (GPU-accelerated) over two-state [0, 1] index range
-import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   View,
   Text,
@@ -52,7 +58,7 @@ import { COLORS, RADII, SHADOWS, SPACING, TYPE } from "../../src/theme";
 import TopSpotsBottomSheet, {
   TopSpotItem,
 } from "../../src/components/map/TopSpotsBottomSheet";
-import MapContentFilterSheet from "../../src/components/map/MapContentFilterSheet";
+import MapFilterSheet from "../../src/components/map/MapFilterSheet";
 type MapContentFilter = "all" | "events" | "places";
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
@@ -78,8 +84,13 @@ const EventMarkerView = React.memo(function EventMarkerView({
 
   return (
     <View
-      style={[markerStyles.eventWrap, { width: glowSize, height: glowSize + 8 }]}
-      accessibilityLabel={count ? `${count} events in this area` : "Event marker"}
+      style={[
+        markerStyles.eventWrap,
+        { width: glowSize, height: glowSize + 8 },
+      ]}
+      accessibilityLabel={
+        count ? `${count} events in this area` : "Event marker"
+      }
       accessibilityRole="button"
     >
       <View
@@ -102,7 +113,9 @@ const EventMarkerView = React.memo(function EventMarkerView({
             strokeWidth={2.5}
           />
         </Svg>
-        <View style={[markerStyles.eventIconOverlay, { width: size, height: size }]}>
+        <View
+          style={[markerStyles.eventIconOverlay, { width: size, height: size }]}
+        >
           {count ? (
             <Text style={markerStyles.clusterCount}>{count}</Text>
           ) : (
@@ -135,8 +148,13 @@ const PlaceMarkerView = React.memo(function PlaceMarkerView({
 
   return (
     <View
-      style={[markerStyles.placeWrap, { width: glowSize, height: glowSize + 10 }]}
-      accessibilityLabel={count ? `${count} places in this area` : "Place marker"}
+      style={[
+        markerStyles.placeWrap,
+        { width: glowSize, height: glowSize + 10 },
+      ]}
+      accessibilityLabel={
+        count ? `${count} places in this area` : "Place marker"
+      }
       accessibilityRole="button"
     >
       <View
@@ -168,7 +186,9 @@ const PlaceMarkerView = React.memo(function PlaceMarkerView({
       </View>
       <View style={markerStyles.placeTail} />
       {count ? (
-        <View style={[markerStyles.clusterBadge, { backgroundColor: "#E07A8B" }]}>
+        <View
+          style={[markerStyles.clusterBadge, { backgroundColor: "#E07A8B" }]}
+        >
           <MapPin size={8} color="#FFF" strokeWidth={2.6} />
         </View>
       ) : null}
@@ -198,9 +218,16 @@ const PlaceListCard = React.memo(function PlaceListCard({
       <View style={cardStyles.imageWrap}>
         <Image source={{ uri: place.image }} style={cardStyles.image} />
         {/* Category badge */}
-        <View style={[cardStyles.categoryBadge, { backgroundColor: "rgba(224,122,139,0.88)" }]}>
+        <View
+          style={[
+            cardStyles.categoryBadge,
+            { backgroundColor: "rgba(224,122,139,0.88)" },
+          ]}
+        >
           <MapPin size={8} color="#FFF" strokeWidth={2.4} />
-          <Text style={cardStyles.categoryBadgeText}>{place.category || "Place"}</Text>
+          <Text style={cardStyles.categoryBadgeText}>
+            {place.category || "Place"}
+          </Text>
         </View>
       </View>
 
@@ -244,7 +271,12 @@ const PlaceListCard = React.memo(function PlaceListCard({
             </View>
           ) : null}
           {/* Tag pill */}
-          <View style={[cardStyles.tagPill, { backgroundColor: "rgba(224,122,139,0.08)" }]}>
+          <View
+            style={[
+              cardStyles.tagPill,
+              { backgroundColor: "rgba(224,122,139,0.08)" },
+            ]}
+          >
             <Text style={[cardStyles.tagText, { color: "#E07A8B" }]}>
               {place.category}
             </Text>
@@ -253,7 +285,11 @@ const PlaceListCard = React.memo(function PlaceListCard({
       </View>
 
       {/* Selected indicator */}
-      {isSelected ? <View style={[cardStyles.selectedBar, { backgroundColor: "#E07A8B" }]} /> : null}
+      {isSelected ? (
+        <View
+          style={[cardStyles.selectedBar, { backgroundColor: "#E07A8B" }]}
+        />
+      ) : null}
     </View>
   );
 });
@@ -331,7 +367,10 @@ const EventListCard = React.memo(function EventListCard({
         {/* Date & Time row */}
         <View style={cardStyles.metaRow}>
           <Calendar size={10} color={COLORS.blue} strokeWidth={2.2} />
-          <Text style={[cardStyles.metaText, { color: COLORS.blue }]} numberOfLines={1}>
+          <Text
+            style={[cardStyles.metaText, { color: COLORS.blue }]}
+            numberOfLines={1}
+          >
             {formatEventDate(event.date)}
           </Text>
         </View>
@@ -346,14 +385,24 @@ const EventListCard = React.memo(function EventListCard({
 
         {/* Attendance + Tags */}
         <View style={bottomRowStyles.bottomRow}>
-          <View style={[cardStyles.attendanceBadge, { backgroundColor: "rgba(109,148,197,0.1)" }]}>
+          <View
+            style={[
+              cardStyles.attendanceBadge,
+              { backgroundColor: "rgba(109,148,197,0.1)" },
+            ]}
+          >
             <Users size={9} color={COLORS.blue} strokeWidth={2.2} />
             <Text style={[cardStyles.attendanceText, { color: COLORS.blue }]}>
               {event.member_count} Going
             </Text>
           </View>
           {/* Tag pill */}
-          <View style={[cardStyles.tagPill, { backgroundColor: "rgba(109,148,197,0.08)" }]}>
+          <View
+            style={[
+              cardStyles.tagPill,
+              { backgroundColor: "rgba(109,148,197,0.08)" },
+            ]}
+          >
             <Text style={[cardStyles.tagText, { color: COLORS.blue }]}>
               {event.category || event.event_type || "Event"}
             </Text>
@@ -362,7 +411,11 @@ const EventListCard = React.memo(function EventListCard({
       </View>
 
       {/* Selected indicator */}
-      {isSelected ? <View style={[cardStyles.selectedBar, { backgroundColor: COLORS.blue }]} /> : null}
+      {isSelected ? (
+        <View
+          style={[cardStyles.selectedBar, { backgroundColor: COLORS.blue }]}
+        />
+      ) : null}
     </View>
   );
 });
@@ -386,8 +439,14 @@ export default function MapScreen() {
   const sheetAnimatedPosition = useSharedValue(SCREEN_H);
 
   // ── Separate Independent States (Technical Requirements) ──
-  const [mapContentFilter, setMapContentFilter] = useState<MapContentFilter>("all");
+  const [mapContentFilter, setMapContentFilter] =
+    useState<MapContentFilter>("all");
   const [isTopSpotsExpanded, setIsTopSpotsExpanded] = useState(false);
+
+  // ── Additional Filter States ──
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [onlyHighlyRated, setOnlyHighlyRated] = useState(false);
+  const [onlyJoinedEvents, setOnlyJoinedEvents] = useState(false);
 
   // ── Derived animated values (GPU-only, no JS thread, based on two snap points [0, 1]) ──
 
@@ -397,19 +456,14 @@ export default function MapScreen() {
       sheetAnimatedIndex.value,
       [0, 1],
       [1, 0.35],
-      Extrapolation.CLAMP
-    )
+      Extrapolation.CLAMP,
+    ),
   );
 
   // Top controls: translateY shifts controls upward as sheet expands
   // to save layout space and look compact (subtle 8px shift)
   const controlsTranslateY = useDerivedValue(() =>
-    interpolate(
-      sheetAnimatedIndex.value,
-      [0, 1],
-      [0, -8],
-      Extrapolation.CLAMP
-    )
+    interpolate(sheetAnimatedIndex.value, [0, 1], [0, -8], Extrapolation.CLAMP),
   );
 
   // Unified topZone header background opacity
@@ -418,7 +472,7 @@ export default function MapScreen() {
       sheetAnimatedIndex.value,
       [0.2, 0.8],
       [0, 1],
-      Extrapolation.CLAMP
+      Extrapolation.CLAMP,
     );
     return { opacity };
   });
@@ -429,7 +483,7 @@ export default function MapScreen() {
       sheetAnimatedIndex.value,
       [0.2, 0.8],
       [1, 0],
-      Extrapolation.CLAMP
+      Extrapolation.CLAMP,
     );
     return { opacity };
   });
@@ -485,26 +539,41 @@ export default function MapScreen() {
     }
   }, [spots, events, hasCentered]);
 
-  // Filtered data based on active mapContentFilter
+  // Filtered data based on active mapContentFilter, category, and joined toggle
   const filteredEvents = useMemo(() => {
     if (mapContentFilter === "places") return [];
+    let res = events;
+    if (onlyJoinedEvents) {
+      res = res.filter((e) => e.going);
+    }
+    if (selectedCategory && selectedCategory !== "all") {
+      res = res.filter((e) => {
+        const cat = (e.category || e.event_type || "").toLowerCase();
+        return cat === selectedCategory.toLowerCase();
+      });
+    }
     if (query.trim()) {
-      return events.filter((e) =>
-        e.title.toLowerCase().includes(query.toLowerCase())
+      res = res.filter((e) =>
+        e.title.toLowerCase().includes(query.toLowerCase()),
       );
     }
-    return events;
-  }, [events, mapContentFilter, query]);
+    return res;
+  }, [events, mapContentFilter, selectedCategory, onlyJoinedEvents, query]);
 
+  // Filtered data based on active mapContentFilter and highly rated toggle
   const filteredSpots = useMemo(() => {
     if (mapContentFilter === "events") return [];
+    let res = spots;
+    if (onlyHighlyRated) {
+      res = res.filter((s) => s.rating >= 4.5);
+    }
     if (query.trim()) {
-      return spots.filter((s) =>
-        s.name.toLowerCase().includes(query.toLowerCase())
+      res = res.filter((s) =>
+        s.name.toLowerCase().includes(query.toLowerCase()),
       );
     }
-    return spots;
-  }, [spots, mapContentFilter, query]);
+    return res;
+  }, [spots, mapContentFilter, onlyHighlyRated, query]);
 
   // Combine markers for the map
   const allMarkers = useMemo<MarkerData[]>(() => {
@@ -604,7 +673,7 @@ export default function MapScreen() {
       const isActive = selectedItemId === m.id;
       return <PlaceMarkerView active={isActive} />;
     },
-    [selectedItemId]
+    [selectedItemId],
   );
 
   // Bottom Sheet: selecting an item
@@ -631,7 +700,7 @@ export default function MapScreen() {
         }
       }
     },
-    [selectedItemId, router]
+    [selectedItemId, router],
   );
 
   // Bottom Sheet: render card
@@ -639,28 +708,20 @@ export default function MapScreen() {
     (item: TopSpotItem, isSelected: boolean) => {
       if (item.type === "event") {
         return (
-          <EventListCard
-            event={item.data as Event}
-            isSelected={isSelected}
-          />
+          <EventListCard event={item.data as Event} isSelected={isSelected} />
         );
       }
       return (
-        <PlaceListCard
-          place={item.data as Spot}
-          isSelected={isSelected}
-        />
+        <PlaceListCard place={item.data as Spot} isSelected={isSelected} />
       );
     },
-    []
+    [],
   );
 
   // Sync state for Top Spots Bottom Sheet
   const handleSheetChange = useCallback((index: number) => {
     setIsTopSpotsExpanded(index === 1);
   }, []);
-
-
 
   // Right-Side Floating Action Stack: Map controls are FIXED to avoid layout shift when sheet expands.
   const floatingStackStyle = {
@@ -672,200 +733,179 @@ export default function MapScreen() {
       {/* ═══ ARCHITECTURAL LAYER 1: MAP LAYER ═══════════════════════════════ */}
       <View style={StyleSheet.absoluteFill}>
         {/* ═══ MAP (with animated opacity) ═══════════════════════════════ */}
-      <Animated.View style={[styles.mapLayer, mapAnimatedStyle]}>
-        <PlatformMap
-          initialLatitude={54.352}
-          initialLongitude={18.6466}
-          region={mapRegion}
-          markers={allMarkers}
-          renderCustomMarker={renderMarker}
-          onMapPress={handleMapPress}
-        >
-          {/* Web preview marker overlays */}
-          {Platform.OS === "web"
-            ? allMarkers.map((m, i) => (
-                <Pressable
-                  key={m.id}
-                  onPress={m.onPress}
-                  style={[
-                    styles.webMarker,
-                    {
-                      top: 200 + i * 68 + (i % 2 === 0 ? 25 : 0),
-                      left: 50 + i * 55 + (i % 3 === 1 ? 70 : 0),
-                    },
-                  ]}
-                >
-                  {m.type === "event" ? (
-                    <EventMarkerView active={selectedItemId === m.id} />
-                  ) : (
-                    <PlaceMarkerView active={selectedItemId === m.id} />
-                  )}
-                </Pressable>
-              ))
-            : null}
+        <Animated.View style={[styles.mapLayer, mapAnimatedStyle]}>
+          <PlatformMap
+            initialLatitude={54.352}
+            initialLongitude={18.6466}
+            region={mapRegion}
+            markers={allMarkers}
+            renderCustomMarker={renderMarker}
+            onMapPress={handleMapPress}
+          >
+            {/* Web preview marker overlays */}
+            {Platform.OS === "web"
+              ? allMarkers.map((m, i) => (
+                  <Pressable
+                    key={m.id}
+                    onPress={m.onPress}
+                    style={[
+                      styles.webMarker,
+                      {
+                        top: 200 + i * 68 + (i % 2 === 0 ? 25 : 0),
+                        left: 50 + i * 55 + (i % 3 === 1 ? 70 : 0),
+                      },
+                    ]}
+                  >
+                    {m.type === "event" ? (
+                      <EventMarkerView active={selectedItemId === m.id} />
+                    ) : (
+                      <PlaceMarkerView active={selectedItemId === m.id} />
+                    )}
+                  </Pressable>
+                ))
+              : null}
 
-          {/* Web current location dot */}
-          {Platform.OS === "web" ? (
-            <View style={styles.currentLocWrap} pointerEvents="none">
-              <View style={styles.currentLocPulse} />
-              <View style={styles.currentLocDot} />
-            </View>
-          ) : null}
-        </PlatformMap>
-      </Animated.View>
-
-      {/* ═══ FLOATING ACTION STACK (Right-side, image15/image10 reference) ═════ */}
-      <View style={[styles.floatingStack, floatingStackStyle]} pointerEvents="box-none">
-        {/* Locate Me Button */}
-        <Pressable
-          style={styles.floatingBtn}
-          onPress={handleLocateMe}
-          accessibilityLabel="Center map on current location"
-        >
-          <Crosshair size={22} color={COLORS.blue} strokeWidth={2.4} />
-        </Pressable>
-      </View>
-
-      {/* ═══ TOP CONTROLS (animated with sheet position) ═════════════════════ */}
-      <Animated.View
-        style={[
-          styles.topZone,
-          controlsAnimatedStyle,
-        ]}
-        pointerEvents="box-none"
-      >
-        {/* Unified Header Background */}
-        <Animated.View style={[StyleSheet.absoluteFillObject, topZoneBgStyle, styles.topZoneBg]}>
-          <BlurView intensity={90} tint="light" style={StyleSheet.absoluteFill} />
+            {/* Web current location dot */}
+            {Platform.OS === "web" ? (
+              <View style={styles.currentLocWrap} pointerEvents="none">
+                <View style={styles.currentLocPulse} />
+                <View style={styles.currentLocDot} />
+              </View>
+            ) : null}
+          </PlatformMap>
         </Animated.View>
 
-        {/* Content Container (Height = insets.top + 108px, Task 2 exact spacing math) */}
-        <View style={[styles.topZoneContent, { paddingTop: insets.top + SPACING.sm }]}>
-          {/* Row 1: Search (height = 48px) */}
-          <View style={styles.searchShadow}>
-            <View style={styles.searchBar}>
-              <Animated.View style={[StyleSheet.absoluteFillObject, individualBgStyle, styles.searchBarBg]}>
-                <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
-              </Animated.View>
-              <View style={styles.searchBarContent}>
-                <Search size={16} color={COLORS.textSecondary} strokeWidth={2} />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search Events & Places..."
-                  placeholderTextColor={COLORS.textTertiary}
-                  value={query}
-                  onChangeText={setQuery}
-                  testID="map-search"
+        {/* ═══ FLOATING ACTION STACK (Right-side, image15/image10 reference) ═════ */}
+        <View
+          style={[styles.floatingStack, floatingStackStyle]}
+          pointerEvents="box-none"
+        >
+          {/* Locate Me Button */}
+          <Pressable
+            style={styles.floatingBtn}
+            onPress={handleLocateMe}
+            accessibilityLabel="Center map on current location"
+          >
+            <Crosshair size={22} color={COLORS.blue} strokeWidth={2.4} />
+          </Pressable>
+        </View>
+
+        {/* ═══ TOP CONTROLS (animated with sheet position) ═════════════════════ */}
+        <Animated.View
+          style={[styles.topZone, controlsAnimatedStyle]}
+          pointerEvents="box-none"
+        >
+          {/* Unified Header Background */}
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFillObject,
+              topZoneBgStyle,
+              styles.topZoneBg,
+            ]}
+          />
+
+          {/* Content Container (Height = insets.top + 108px, Task 2 exact spacing math) */}
+          <View
+            style={[
+              styles.topZoneContent,
+              { paddingTop: insets.top + SPACING.sm },
+            ]}
+          >
+            {/* Row 1: Search (height = 48px) */}
+            <View style={styles.searchShadow}>
+              <View style={styles.searchBar}>
+                <Animated.View
+                  style={[
+                    StyleSheet.absoluteFillObject,
+                    individualBgStyle,
+                    styles.searchBarBg,
+                  ]}
                 />
-                {query.length > 0 ? (
-                  <Pressable onPress={() => setQuery("")} hitSlop={8}>
-                    <X size={14} color={COLORS.textSecondary} strokeWidth={2.4} />
-                  </Pressable>
-                ) : null}
+                <View style={styles.searchBarContent}>
+                  <Search size={16} color="#4E493F" strokeWidth={2.4} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search Events & Places..."
+                    placeholderTextColor="#8A8576"
+                    value={query}
+                    onChangeText={setQuery}
+                    testID="map-search"
+                  />
+                  {query.length > 0 ? (
+                    <Pressable onPress={() => setQuery("")} hitSlop={8}>
+                      <X size={14} color="#8A8576" strokeWidth={2.4} />
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
             </View>
+
+            {/* Row 2: Scrollable filter pills (Gdańsk | Within 10 km | Filters) (height = 40px) */}
+            <View style={styles.filterRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterScrollContent}
+                style={styles.filterScroll}
+              >
+                <Pressable style={styles.pillShadow} testID="city-selector">
+                  <View style={styles.pillBtn}>
+                    <Animated.View
+                      style={[
+                        StyleSheet.absoluteFillObject,
+                        individualBgStyle,
+                        styles.pillBtnBg,
+                      ]}
+                    />
+                    <View style={styles.pillBtnContent}>
+                      <Text style={styles.pillIconEmoji}>📍</Text>
+                      <Text style={styles.pillLabel}>{city}</Text>
+                      <ChevronDown size={13} color="#8A8576" strokeWidth={2} />
+                    </View>
+                  </View>
+                </Pressable>
+
+                <Pressable
+                  style={styles.pillShadow}
+                  testID="filters-btn"
+                  onPress={() => setIsFilterMenuOpen(true)}
+                >
+                  <View style={styles.pillBtn}>
+                    <Animated.View
+                      style={[
+                        StyleSheet.absoluteFillObject,
+                        individualBgStyle,
+                        styles.pillBtnBg,
+                      ]}
+                    />
+                    <View style={styles.pillBtnContent}>
+                      <SlidersHorizontal
+                        size={13}
+                        color="#4E6C3B"
+                        strokeWidth={2}
+                      />
+                      <Text
+                        style={[
+                          styles.pillLabel,
+                          { color: "#4E6C3B", fontWeight: "700" },
+                        ]}
+                      >
+                        Filters
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+              </ScrollView>
+            </View>
           </View>
-
-          {/* Row 2: Scrollable filter pills (Gdańsk | Within 10 km | Filters) (height = 40px) */}
-          <View style={styles.filterRow}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterScrollContent}
-              style={styles.filterScroll}
-            >
-              <Pressable
-                style={styles.pillShadow}
-                testID="city-selector"
-              >
-                <View style={styles.pillBtn}>
-                  <Animated.View style={[StyleSheet.absoluteFillObject, individualBgStyle, styles.pillBtnBg]}>
-                    <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
-                  </Animated.View>
-                  <View style={styles.pillBtnContent}>
-                    <Text style={styles.pillIconEmoji}>📍</Text>
-                    <Text style={styles.pillLabel}>{city}</Text>
-                    <ChevronDown
-                      size={13}
-                      color={COLORS.textSecondary}
-                      strokeWidth={2.4}
-                    />
-                  </View>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.pillShadow}
-                testID="radius-selector"
-              >
-                <View style={styles.pillBtn}>
-                  <Animated.View style={[StyleSheet.absoluteFillObject, individualBgStyle, styles.pillBtnBg]}>
-                    <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
-                  </Animated.View>
-                  <View style={styles.pillBtnContent}>
-                    <Text style={styles.pillLabel}>Within {distance} km</Text>
-                    <ChevronDown
-                      size={13}
-                      color={COLORS.textSecondary}
-                      strokeWidth={2.4}
-                    />
-                  </View>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.pillShadow}
-                testID="map-filter-selector"
-                onPress={() => setIsFilterMenuOpen(true)}
-              >
-                <View style={styles.pillBtn}>
-                  <Animated.View style={[StyleSheet.absoluteFillObject, individualBgStyle, styles.pillBtnBg]}>
-                    <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
-                  </Animated.View>
-                  <View style={styles.pillBtnContent}>
-                    <SlidersHorizontal
-                      size={13}
-                      color={COLORS.blue}
-                      strokeWidth={2.4}
-                    />
-                    <Text style={styles.pillLabel}>
-                      Show: {mapContentFilter === "all" ? "All" : mapContentFilter === "events" ? "Events" : "Places"}
-                    </Text>
-                    <ChevronDown
-                      size={13}
-                      color={COLORS.textSecondary}
-                      strokeWidth={2.4}
-                    />
-                  </View>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.pillShadow}
-                testID="filters-btn"
-              >
-                <View style={styles.pillBtn}>
-                  <Animated.View style={[StyleSheet.absoluteFillObject, individualBgStyle, styles.pillBtnBg]}>
-                    <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
-                  </Animated.View>
-                  <View style={styles.pillBtnContent}>
-                    <SlidersHorizontal
-                      size={13}
-                      color={COLORS.text}
-                      strokeWidth={2.4}
-                    />
-                    <Text style={styles.pillLabel}>Filters</Text>
-                  </View>
-                </View>
-              </Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </Animated.View>
+        </Animated.View>
       </View>
 
       {/* ═══ ARCHITECTURAL LAYER 2: CONTENT LAYER ═══════════════════════════════ */}
-      <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="box-none">
+      <View
+        style={[StyleSheet.absoluteFill, { zIndex: 10 }]}
+        pointerEvents="box-none"
+      >
         {/* ═══ TOP SPOTS BOTTOM SHEET (Task 4 ref forwarded) ═══════════════════ */}
         <TopSpotsBottomSheet
           ref={topSpotsRef}
@@ -881,12 +921,20 @@ export default function MapScreen() {
           bottomInset={insets.bottom}
         />
 
-        {/* ═══ MAP CONTENT FILTER COMPACT SELECTION SHEET ══════════════════════ */}
-        <MapContentFilterSheet
+        {/* ═══ MAP FILTERS COMPREHENSIVE SHEET ═════════════════════════════════ */}
+        <MapFilterSheet
           visible={isFilterMenuOpen}
-          value={mapContentFilter}
-          onChange={setMapContentFilter}
           onClose={() => setIsFilterMenuOpen(false)}
+          mapContentFilter={mapContentFilter}
+          onMapContentFilterChange={setMapContentFilter}
+          distance={distance}
+          onDistanceChange={setDistance}
+          selectedCategory={selectedCategory}
+          onCategoryChange={setSelectedCategory}
+          onlyHighlyRated={onlyHighlyRated}
+          onOnlyHighlyRatedChange={setOnlyHighlyRated}
+          onlyJoinedEvents={onlyJoinedEvents}
+          onOnlyJoinedEventsChange={setOnlyJoinedEvents}
         />
       </View>
     </GestureHandlerRootView>
@@ -1219,14 +1267,15 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   topZoneBg: {
+    backgroundColor: "#FAF9F5",
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.glassBorderSoft,
+    borderBottomColor: "rgba(0, 0, 0, 0.05)",
   },
   topZoneContent: {
     paddingHorizontal: SPACING.lg,
     paddingBottom: 4, // exactly 4px vertical padding bottom! (Task 2)
   },
-  searchShadow: { ...SHADOWS.md, borderRadius: RADII.pill },
+  searchShadow: { ...SHADOWS.sm, borderRadius: RADII.pill },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -1235,8 +1284,9 @@ const styles = StyleSheet.create({
     height: 48,
   },
   searchBarBg: {
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: "rgba(0, 0, 0, 0.05)",
     borderRadius: RADII.pill,
   },
   searchBarContent: {
@@ -1251,7 +1301,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: "500" as const,
-    color: COLORS.text,
+    color: "#4E493F",
     paddingVertical: 0,
     outlineWidth: 0,
   } as any,
@@ -1263,7 +1313,7 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   filterScroll: { flex: 1 },
-  filterScrollContent: { gap: SPACING.sm },
+  filterScrollContent: { gap: SPACING.xs },
   pillShadow: { ...SHADOWS.sm, borderRadius: RADII.pill, height: 40 },
   pillBtn: {
     flexDirection: "row",
@@ -1273,8 +1323,9 @@ const styles = StyleSheet.create({
     height: 40,
   },
   pillBtnBg: {
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: "rgba(0, 0, 0, 0.05)",
     borderRadius: RADII.pill,
   },
   pillBtnContent: {
@@ -1289,6 +1340,7 @@ const styles = StyleSheet.create({
     ...TYPE.bodyMed,
     fontSize: 13,
     fontWeight: "600" as const,
+    color: "#4E493F",
   },
 
   // Floating button stack (image15/image10 reference)
@@ -1342,4 +1394,3 @@ const styles = StyleSheet.create({
     ...SHADOWS.md,
   },
 });
-

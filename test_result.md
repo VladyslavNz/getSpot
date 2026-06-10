@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-## user_problem_statement: "Redesign Map Navigation Bar & Bottom Sheet to match the design reference visual language, layout structure, active/inactive states, and Bottom Sheet integration."
+## user_problem_statement: "Move Radius Filter Into Filter Panel & Remove Within 10km Button on Map Screen: Simplify the Map top bar by removing the standalone radius button and integrating it into the central Filter sheet."
 ## frontend:
 ##   - task: "Fix Map Screen Layer Hierarchy"
 ##     implemented: true
@@ -126,20 +126,42 @@
 ##       - working: true
 ##         agent: "main"
 ##         comment: "Redesigned FloatingTabBar into a docked solid warm cream (#F4F3ED) bar, showing all 5 buttons inline with forest green (#4E6C3B) active states. Updated TopSpotsBottomSheet background to solid cream with a custom shadow, updated text colors, and aligned bottomInset to 56 + bottomInset."
+##   - task: "Refactor Map Screen Top Controls & Filter Structure"
+##     implemented: true
+##     working: true
+##     file: "frontend/app/(tabs)/map.tsx"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: true
+##     status_history:
+##       - working: true
+##         agent: "main"
+##         comment: "Replaced top zone, search bar, and filter pill backgrounds with solid light surfaces (white/milk-white) and SHADOWS.sm. Removed the Show button from top bar, bound the radius/filters buttons to open the new comprehensive MapFilterSheet.tsx modal containing Categories, Distance, Places (Highly Rated toggle), Events (Joined toggle), and Map Content modes."
+##   - task: "Move Radius Filter Into Filter Panel & Remove Radius Button"
+##     implemented: true
+##     working: true
+##     file: "frontend/app/(tabs)/map.tsx"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: true
+##     status_history:
+##       - working: true
+##         agent: "main"
+##         comment: "Completely removed the radius-selector button (Within 10km) from the top bar scroll view in map.tsx. Spacing has been rebalanced (now showing only Gdańsk and Filters), and distance values are fully managed and persisted inside MapFilterSheet.tsx."
 ##
 ## metadata:
 ##   created_by: "main_agent"
 ##   version: "1.0"
-##   test_sequence: 2
+##   test_sequence: 4
 ##   run_ui: false
 ##
 ## test_plan:
 ##   current_focus:
-##     - "Redesign Map Navigation Bar & Bottom Sheet"
+##     - "Move Radius Filter Into Filter Panel & Remove Radius Button"
 ##   stuck_tasks: []
 ##   test_all: false
 ##   test_priority: "high_first"
 ##
 ## agent_communication:
 ##   - agent: "main"
-##     message: "Completed the visual redesign of the bottom navigation bar and bottom sheet according to image16/17 references. Changed active color, background colors, and aligned the layout boundaries perfectly."
+##     message: "Relocated the radius filter into the Filters interface, removed the Within 10km button from the Map top controls, and verified clean TypeScript compilation."
